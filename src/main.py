@@ -8,7 +8,9 @@ from datetime import date
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=
-        'Create and run active learning experiments on 5 prime splicing data')
+        'Create and run pretraining and finetuning experiments with Bayesian autoencoders'
+    )
+
     parser.add_argument('--epochs',
                         default=300,
                         type=int,
@@ -25,17 +27,32 @@ def main() -> int:
     parser.add_argument('--dropout_prob',
                         default=0.15,
                         type=float,
-                        help='probability for dropout before dense layers')
+                        help='probability for dropout layers')
     parser.add_argument('--save_dir',
-                        default='active-learning-save/saved_metrics/',
-                        help='path to saved metric files')
-    parser.add_argument(
-        '--log_save_dir',
-        default='/home/tingchen/active-learning-save/active-learning-logs/',
-        help='path to saved log files')
+                        default='/home/tingchen/bayes-ae-save/',
+                        help='path to saved model files')
+    parser.add_argument('--data_dir',
+                        default='/home/tingchen/data/',
+                        help='path to saved model files')
+    parser.add_argument('--log_save_dir',
+                        default='/home/tingchen/bayes-ae-save/',
+                        help='path to saved log files')
     parser.add_argument('--optimizer',
                         default='adamw',
                         help='type of optimizer to use')
+    parser.add_argument('--learning_rate',
+                        default=1e-5,
+                        type=float,
+                        help='learning rate for optimizer')
+    parser.add_argument('--model_type',
+                        default='vae',
+                        help='type of model to use')
+    parser.add_argument('--pretraining_inference_type',
+                        default='vae',
+                        help='type of model to use')
+    parser.add_argument('--fine_tuning_inference_type',
+                        default='vae',
+                        help='type of model to use')
     parser.add_argument('--num_repeats',
                         default=3,
                         type=int,
@@ -52,7 +69,7 @@ def main() -> int:
     torch.manual_seed(configs['seed'])
 
     # set up logging
-    filename = f'al-{configs["model_type"]}-{configs["pretraining_inference"]}-{configs["fine_tuning_inference"]}-{date.today()}'
+    filename = f'{configs["model_type"]}-pretraining-{configs["pretraining_inference_type"]}-{configs["fine_tuning_inference_type"]}-{date.today()}'
     FORMAT = '%(asctime)s;%(levelname)s;%(message)s'
     logging.basicConfig(level=logging.DEBUG,
                         filename=f'{configs["log_save_dir"]}{filename}.log',
