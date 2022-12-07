@@ -1,8 +1,16 @@
 import argparse
-import torch
 import logging
 import sys
 from datetime import date
+
+import torch
+from torch.nn import MSELoss
+from torch.optim import AdamW, Adam
+
+from trainers.vae_trainer import VAENotMNIST2MNISTTrainer
+
+arg_trainer_map = {'vae': VAENotMNIST2MNISTTrainer}
+arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
 
 
 def main() -> int:
@@ -12,7 +20,7 @@ def main() -> int:
     )
 
     parser.add_argument('--epochs',
-                        default=300,
+                        default=100,
                         type=int,
                         help='number of epochs to train model')
     parser.add_argument('--device',
@@ -38,10 +46,10 @@ def main() -> int:
                         default='/home/tingchen/bayes-ae-save/',
                         help='path to saved log files')
     parser.add_argument('--optimizer',
-                        default='adamw',
+                        default='adam',
                         help='type of optimizer to use')
     parser.add_argument('--learning_rate',
-                        default=1e-5,
+                        default=1e-3,
                         type=float,
                         help='learning rate for optimizer')
     parser.add_argument('--model_type',
@@ -49,10 +57,10 @@ def main() -> int:
                         help='type of model to use')
     parser.add_argument('--pretraining_inference_type',
                         default='vae',
-                        help='type of model to use')
+                        help='inference type for pretraining')
     parser.add_argument('--fine_tuning_inference_type',
-                        default='vae',
-                        help='type of model to use')
+                        default='map',
+                        help='inference type for fine tuning')
     parser.add_argument('--num_repeats',
                         default=3,
                         type=int,
@@ -69,7 +77,7 @@ def main() -> int:
     torch.manual_seed(configs['seed'])
 
     # set up logging
-    filename = f'{configs["model_type"]}-pretraining-{configs["pretraining_inference_type"]}-{configs["fine_tuning_inference_type"]}-{date.today()}'
+    filename = f'{configs["model_type"]}-pretraining-{configs["pretraining_inference_type"]}-fine_tuning-{configs["fine_tuning_inference_type"]}-{date.today()}'
     FORMAT = '%(asctime)s;%(levelname)s;%(message)s'
     logging.basicConfig(level=logging.DEBUG,
                         filename=f'{configs["log_save_dir"]}{filename}.log',
@@ -78,19 +86,15 @@ def main() -> int:
     logging.info(configs)
 
     # get trainer
-    # trainer_type, model_type = arg_model_trainer_map[
-    #     configs['acquisition_fn_type']]
-    # trainer = trainer_type(
-    #     model_type=model_type,
-    #     optimizer_type=arg_optimizer_map[configs['optimizer']],
-    #     criterion=MSELoss(),
-    #     **configs)
+    trainer_type = arg_trainer_map[configs['model_type']]
+    trainer = trainer_type(
+        optimizer_type=arg_optimizer_map[configs['optimizer']],
+        criterion=MSELoss(reduction='sum'),
+        **configs)
 
-    # trainer.load_data()
-
-    # # perform experiment n times
-    # for iter in range(configs['num_repeats']):
-    #     trainer.active_train_loop(iter)
+    # perform experiment n times
+    for iter in range(configs['num_repeats']):
+        trainer.pretrain()
 
     return 0
 

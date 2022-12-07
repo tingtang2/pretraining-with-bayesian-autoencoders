@@ -15,7 +15,6 @@ from tqdm import tqdm
 class BaseTrainer(ABC):
 
     def __init__(self,
-                 model_type,
                  optimizer_type,
                  criterion,
                  device: str,
@@ -29,7 +28,6 @@ class BaseTrainer(ABC):
         super().__init__()
 
         # basic configs every trainer needs
-        self.model_type = model_type
         self.optimizer_type = optimizer_type
         self.criterion = criterion
         self.device = torch.device(device)
@@ -45,15 +43,19 @@ class BaseTrainer(ABC):
             setattr(self, key, item)
 
     @abstractmethod
-    def create_dataloaders(self):
+    def create_pretraining_dataloaders(self):
         pass
 
     @abstractmethod
-    def pre_train(self):
+    def create_finetuning_dataloaders(self):
         pass
 
     @abstractmethod
-    def fine_tune(self):
+    def pretrain(self):
+        pass
+
+    @abstractmethod
+    def finetune(self):
         pass
 
     @abstractmethod
