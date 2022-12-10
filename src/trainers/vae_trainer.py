@@ -138,7 +138,8 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
 
             y_hat = self.model(reshaped_x.to(self.device))
             # TODO: see what happens when we keep self.model.kl
-            loss = self.criterion(y_hat, y.to(self.device))  # - self.model.kl
+            loss = self.criterion(y_hat,
+                                  y.to(self.device))  # - self.model.encoder.kl
 
             loss.backward()
             running_loss += loss.item()
@@ -159,7 +160,7 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
                     y.to(self.device) == torch.argmax(
                         y_hat, dim=-1)).detach().cpu().item()
 
-        return self.batch_size * (num_right / len(loader.dataset))
+        return num_right / len(loader.dataset)
 
     def finetune(self):
         train_loader, valid_loader = self.create_finetuning_dataloaders()
@@ -191,15 +192,15 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
             )
 
         name = 'vae_pretrained_notmnist_finetune_mnist'
-        self.save_model(name=name)
-        self.plot_latent_from_fine(loader=train_loader, name=name)
-        self.plot_reconstructed_from_fine(name=name)
-        self.save_metrics(training_loss,
-                          name=name + '_train_loss',
-                          phase='finetune')
-        self.save_metrics(val_accuracy,
-                          name=name + '_val_accuracy',
-                          phase='finetune')
+        # self.save_model(name=name)
+        # self.plot_latent_from_fine(loader=train_loader, name=name)
+        # self.plot_reconstructed_from_fine(name=name)
+        # self.save_metrics(training_loss,
+        #                   name=name + '_train_loss',
+        #                   phase='finetune')
+        # self.save_metrics(val_accuracy,
+        #                   name=name + '_val_accuracy',
+        #                   phase='finetune')
 
     def plot_latent_from_fine(self, loader, name: str):
         self.model.eval()

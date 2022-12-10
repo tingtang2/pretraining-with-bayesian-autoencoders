@@ -20,11 +20,11 @@ def main() -> int:
     )
 
     parser.add_argument('--pretrain_epochs',
-                        default=100,
+                        default=300,
                         type=int,
                         help='number of epochs to pretrain model')
     parser.add_argument('--finetune_epochs',
-                        default=100,
+                        default=20,
                         type=int,
                         help='number of epochs to finetune model')
     parser.add_argument('--device',
