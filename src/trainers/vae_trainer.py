@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from tqdm import trange
 
 from data import notMNISTDataset
-from models.vae import VAE
+from models.vae import VAE, VAEForClassification
 from trainers.base_trainer import BaseTrainer
 
 
@@ -260,3 +260,81 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
         fig.update_yaxes(showticklabels=False)
         fig.write_html(self.save_dir + f'plots/{name}_reconstruction.html')
         fig.write_image(self.save_dir + f'plots/{name}_reconstruction.png')
+
+
+class VAENoPretrainingMNIST(VAENotMNIST2MNISTTrainer):
+
+    def finetune(self):
+        train_loader, valid_loader = self.create_finetuning_dataloaders()
+        self.model = VAEForClassification(n_latent_dims=2,
+                                          n_out_dims=10).to(self.device)
+
+        # model surgery for image classification
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        self.criterion = nn.CrossEntropyLoss()
+
+        training_loss = []
+        val_loss = []
+        training_accuracy = []
+        val_accuracy = []
+
+        for i in trange(self.finetune_epochs):
+            training_loss.append(self.finetune_train(train_loader))
+            val_loss.append(self.finetune_train(valid_loader))
+            training_accuracy.append(self.finetune_eval(train_loader))
+            val_accuracy.append(self.finetune_eval(valid_loader))
+
+            logging.info(
+                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}'
+            )
+
+        name = 'vae_no_pretraining_mnist'
+        #self.save_model(name=name)
+
+
+class VAENoPretrainingFashionMNIST(VAENotMNIST2MNISTTrainer):
+
+    def create_finetuning_dataloaders(self):
+        transform = transforms.Compose([transforms.ToTensor()])
+        MNIST_data_train = torchvision.datasets.FashionMNIST(
+            self.data_dir, train=True, transform=transform, download=True)
+
+        train_set, val_set = torch.utils.data.random_split(
+            MNIST_data_train, [50000, 10000])
+        train_loader = torch.utils.data.DataLoader(train_set,
+                                                   batch_size=self.batch_size,
+                                                   shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(
+            val_set, batch_size=len(MNIST_data_train), shuffle=False)
+        return train_loader, valid_loader
+
+    def finetune(self):
+        train_loader, valid_loader = self.create_finetuning_dataloaders()
+        self.model = VAEForClassification(n_latent_dims=2,
+                                          n_out_dims=10).to(self.device)
+
+        # model surgery for image classification
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        self.criterion = nn.CrossEntropyLoss()
+
+        training_loss = []
+        val_loss = []
+        training_accuracy = []
+        val_accuracy = []
+
+        for i in trange(self.finetune_epochs):
+            training_loss.append(self.finetune_train(train_loader))
+            val_loss.append(self.finetune_train(valid_loader))
+            training_accuracy.append(self.finetune_eval(train_loader))
+            val_accuracy.append(self.finetune_eval(valid_loader))
+
+            logging.info(
+                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}'
+            )
+
+        name = 'vae_no_pretraining_fashion_mnist'
+        #self.save_model(name=name)

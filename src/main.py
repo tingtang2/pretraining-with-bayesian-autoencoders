@@ -7,9 +7,13 @@ import torch
 from torch.nn import MSELoss
 from torch.optim import AdamW, Adam
 
-from trainers.vae_trainer import VAENotMNIST2MNISTTrainer
+from trainers.vae_trainer import VAENotMNIST2MNISTTrainer, VAENoPretrainingMNIST, VAENoPretrainingFashionMNIST
 
-arg_trainer_map = {'vae': VAENotMNIST2MNISTTrainer}
+arg_trainer_map = {
+    'vae': VAENotMNIST2MNISTTrainer,
+    'not_pretrained_vae': VAENoPretrainingMNIST,
+    'not_pretrained_vae_fashion': VAENoPretrainingFashionMNIST
+}
 arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
 
 
@@ -79,6 +83,10 @@ def main() -> int:
 
     args = parser.parse_args()
     configs = args.__dict__
+
+    if 'not_pretrained' in configs['model_type']:
+        configs['pretraining_inference_type'] = 'none'
+        configs['perform_pretrain'] = False
 
     # for repeatability
     torch.manual_seed(configs['seed'])
