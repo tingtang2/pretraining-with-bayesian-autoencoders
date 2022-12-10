@@ -7,10 +7,11 @@ import torch
 from torch.nn import MSELoss
 from torch.optim import AdamW, Adam
 
-from trainers.vae_trainer import VAENotMNIST2MNISTTrainer, VAENoPretrainingMNIST, VAENoPretrainingFashionMNIST
+from trainers.vae_trainer import VAENotMNIST2MNISTTrainer, VAENoPretrainingMNIST, VAENoPretrainingFashionMNIST, VAENotMNIST2FashionMNISTTrainer
 
 arg_trainer_map = {
     'vae': VAENotMNIST2MNISTTrainer,
+    'vae_fashion': VAENotMNIST2FashionMNISTTrainer,
     'not_pretrained_vae': VAENoPretrainingMNIST,
     'not_pretrained_vae_fashion': VAENoPretrainingFashionMNIST
 }

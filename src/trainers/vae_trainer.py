@@ -299,7 +299,7 @@ class VAENoPretrainingFashionMNIST(VAENotMNIST2MNISTTrainer):
     def create_finetuning_dataloaders(self):
         transform = transforms.Compose([transforms.ToTensor()])
         MNIST_data_train = torchvision.datasets.FashionMNIST(
-            self.data_dir, train=True, transform=transform, download=True)
+            self.data_dir, train=True, transform=transform, download=False)
 
         train_set, val_set = torch.utils.data.random_split(
             MNIST_data_train, [50000, 10000])
@@ -338,3 +338,37 @@ class VAENoPretrainingFashionMNIST(VAENotMNIST2MNISTTrainer):
 
         name = 'vae_no_pretraining_fashion_mnist'
         #self.save_model(name=name)
+
+
+class VAENotMNIST2FashionMNISTTrainer(VAENoPretrainingFashionMNIST):
+
+    def finetune(self):
+        train_loader, valid_loader = self.create_finetuning_dataloaders()
+        self.model = VAE(n_latent_dims=2).to(self.device)
+        self.model.load_state_dict(
+            torch.load(f'{self.save_dir}models/vae_pretrained_notmnist.pt'))
+
+        # model surgery for image classification
+        self.old_decoder = self.model.decoder
+        self.model.decoder = nn.Linear(2, 10).to(self.device)
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        self.criterion = nn.CrossEntropyLoss()
+
+        training_loss = []
+        val_loss = []
+        training_accuracy = []
+        val_accuracy = []
+
+        for i in trange(self.finetune_epochs):
+            training_loss.append(self.finetune_train(train_loader))
+            val_loss.append(self.finetune_train(valid_loader))
+            training_accuracy.append(self.finetune_eval(train_loader))
+            val_accuracy.append(self.finetune_eval(valid_loader))
+
+            logging.info(
+                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}'
+            )
+
+        name = 'vae_pretrained_notmnist_finetune_mnist'
