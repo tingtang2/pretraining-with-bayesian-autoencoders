@@ -19,10 +19,14 @@ def main() -> int:
         'Create and run pretraining and finetuning experiments with Bayesian autoencoders'
     )
 
-    parser.add_argument('--epochs',
+    parser.add_argument('--pretrain_epochs',
                         default=100,
                         type=int,
-                        help='number of epochs to train model')
+                        help='number of epochs to pretrain model')
+    parser.add_argument('--finetune_epochs',
+                        default=100,
+                        type=int,
+                        help='number of epochs to finetune model')
     parser.add_argument('--device',
                         '-d',
                         default='cuda',
@@ -42,9 +46,6 @@ def main() -> int:
     parser.add_argument('--data_dir',
                         default='/home/tingchen/data/',
                         help='path to saved model files')
-    parser.add_argument('--log_save_dir',
-                        default='/home/tingchen/bayes-ae-save/',
-                        help='path to saved log files')
     parser.add_argument('--optimizer',
                         default='adam',
                         help='type of optimizer to use')
@@ -69,6 +70,12 @@ def main() -> int:
                         default=11202022,
                         type=int,
                         help='random seed to be used in numpy and torch')
+    parser.add_argument('--perform_pretrain',
+                        action='store_true',
+                        help='pretrain model')
+    parser.add_argument('--perform_finetune',
+                        action='store_true',
+                        help='finetune model on dataset')
 
     args = parser.parse_args()
     configs = args.__dict__
@@ -80,7 +87,7 @@ def main() -> int:
     filename = f'{configs["model_type"]}-pretraining-{configs["pretraining_inference_type"]}-fine_tuning-{configs["fine_tuning_inference_type"]}-{date.today()}'
     FORMAT = '%(asctime)s;%(levelname)s;%(message)s'
     logging.basicConfig(level=logging.DEBUG,
-                        filename=f'{configs["log_save_dir"]}{filename}.log',
+                        filename=f'{configs["save_dir"]}logs/{filename}.log',
                         filemode='a',
                         format=FORMAT)
     logging.info(configs)
@@ -93,8 +100,11 @@ def main() -> int:
         **configs)
 
     # perform experiment n times
-    for iter in range(configs['num_repeats']):
+    #for iter in range(configs['num_repeats']):
+    if trainer.perform_pretrain:
         trainer.pretrain()
+    if trainer.perform_finetune:
+        trainer.finetune()
 
     return 0
 

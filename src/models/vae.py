@@ -3,13 +3,12 @@ from torch import nn
 from torch.nn import functional as F
 
 
-class VAE(nn.Module):
+class VariationalEncoder(nn.Module):
 
-    def __init__(self, n_latent_dims) -> None:
-        super(VAE, self).__init__()
+    def __init__(self, input_size=784, n_latent_dims=2) -> None:
+        super(VariationalEncoder, self).__init__()
 
-        # encoder
-        self.input = nn.Linear(784, 512)
+        self.input = nn.Linear(input_size, 512)
         self.latent_mu = nn.Linear(512, n_latent_dims)
         self.latent_sigma = nn.Linear(512, n_latent_dims)
 
@@ -19,32 +18,58 @@ class VAE(nn.Module):
         self.gaussian.scale = self.gaussian.scale.cuda()
         self.kl = 0
 
-        # decoder
+    def forward(self, x):
+        # encode
+        x = F.relu(self.input(x))
+
+        mu = self.latent_mu(x)
+        sigma = torch.exp(self.latent_sigma(x))
+
+        assert torch.all(sigma >= 0)
+
+        # reparameterization trick
+        z = mu + sigma * self.gaussian.sample(mu.shape)
+
+        self.kl = 0.5 * (1 + torch.log(sigma**2) - mu**2 - sigma**2).sum()
+
+        return z, mu, sigma
+
+
+class Decoder(nn.Module):
+
+    def __init__(self, n_latent_dims, output_size=784) -> None:
+        super(Decoder, self).__init__()
+
         self.latent_out = nn.Linear(n_latent_dims, 512)
-        self.out = nn.Linear(512, 784)
+        self.out = nn.Linear(512, output_size)
 
-    def forward(self, x, encode=False, decode=False) -> torch.Tensor:
-        if decode:
-            z = x
-        else:
-            # encode
-            x = F.relu(self.input(x))
-
-            mu = self.latent_mu(x)
-            sigma = torch.exp(self.latent_sigma(x))
-
-            assert torch.all(sigma >= 0)
-
-            # reparameterization trick
-            z = mu + sigma * self.gaussian.sample(mu.shape)
-
-            if encode:
-                return z, mu, sigma
-
-            self.kl = 0.5 * (1 + torch.log(sigma**2) - mu**2 - sigma**2).sum()
-
-        # decode
-        z = F.relu(self.latent_out(z))
+    def forward(self, x):
+        z = F.relu(self.latent_out(x))
         z = torch.sigmoid(self.out(z))
 
         return z
+
+
+class VAE(nn.Module):
+
+    def __init__(self, n_latent_dims) -> None:
+        super(VAE, self).__init__()
+
+        self.encoder = VariationalEncoder(n_latent_dims=n_latent_dims)
+        self.decoder = Decoder(n_latent_dims=n_latent_dims)
+
+    def forward(self, x) -> torch.Tensor:
+        z, _, _ = self.encoder(x)
+        return self.decoder(z)
+
+
+class VAEForClassification(nn.Module):
+
+    def __init__(self, n_latent_dims, n_out_dims) -> None:
+        super(VAEForClassification, self).__init__()
+        self.encoder = VariationalEncoder(n_latent_dims=n_latent_dims)
+        self.decoder = nn.Linear(n_latent_dims, n_out_dims)
+
+    def forward(self, x) -> torch.Tensor:
+        z, _, _ = self.encoder(x)
+        return self.decoder(z)
