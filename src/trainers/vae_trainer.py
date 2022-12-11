@@ -137,7 +137,7 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
             reshaped_x = x.reshape(x.size(0), 784)
 
             y_hat = self.model(reshaped_x.to(self.device))
-            # TODO: see what happens when we keep self.model.kl
+            # TODO: see what happens when we keep self.model.kl (it's really bad!)
             loss = self.criterion(y_hat,
                                   y.to(self.device))  # - self.model.encoder.kl
 
@@ -236,31 +236,6 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
         fig.write_html(self.save_dir + f'plots/{name}_latent_space.html')
         fig.write_image(self.save_dir + f'plots/{name}_latent_space.png')
 
-    def plot_reconstructed_from_fine(self,
-                                     r0=(-5, 10),
-                                     r1=(-10, 5),
-                                     n=12,
-                                     name: str = 'default'):
-        w = 28
-        img = np.zeros((n * w, n * w))
-        for i, y in enumerate(np.linspace(*r1, n)):
-            for j, x in enumerate(np.linspace(*r0, n)):
-                z = torch.Tensor([[x, y]]).to(self.device)
-                x_hat = self.old_decoder(z)
-                x_hat = x_hat.reshape(w, w).cpu().detach().numpy()
-
-                img[(n - 1 - i) * w:(n - 1 - i + 1) * w,
-                    j * w:(j + 1) * w] = x_hat
-
-        fig = px.imshow(img,
-                        color_continuous_scale=px.colors.sequential.Electric)
-
-        fig.update_layout(coloraxis_showscale=False)
-        fig.update_xaxes(showticklabels=False)
-        fig.update_yaxes(showticklabels=False)
-        fig.write_html(self.save_dir + f'plots/{name}_reconstruction.html')
-        fig.write_image(self.save_dir + f'plots/{name}_reconstruction.png')
-
 
 class VAENoPretrainingMNIST(VAENotMNIST2MNISTTrainer):
 
@@ -347,6 +322,200 @@ class VAENotMNIST2FashionMNISTTrainer(VAENoPretrainingFashionMNIST):
         self.model = VAE(n_latent_dims=2).to(self.device)
         self.model.load_state_dict(
             torch.load(f'{self.save_dir}models/vae_pretrained_notmnist.pt'))
+
+        # model surgery for image classification
+        self.old_decoder = self.model.decoder
+        self.model.decoder = nn.Linear(2, 10).to(self.device)
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        self.criterion = nn.CrossEntropyLoss()
+
+        training_loss = []
+        val_loss = []
+        training_accuracy = []
+        val_accuracy = []
+
+        for i in trange(self.finetune_epochs):
+            training_loss.append(self.finetune_train(train_loader))
+            val_loss.append(self.finetune_train(valid_loader))
+            training_accuracy.append(self.finetune_eval(train_loader))
+            val_accuracy.append(self.finetune_eval(valid_loader))
+
+            logging.info(
+                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}'
+            )
+
+        name = 'vae_pretrained_notmnist_finetune_mnist'
+
+
+##################################################################
+
+# Pretraining on Fashion MNIST
+
+
+class VAEFashionMNIST2notMNISTTrainer(VAENotMNIST2FashionMNISTTrainer):
+
+    def create_pretraining_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
+        return super().create_finetuning_dataloaders()
+
+    def create_finetuning_dataloaders(self):
+        return super().create_pretraining_dataloaders()
+
+    def pretrain(self):
+        train_loader, valid_loader = self.create_pretraining_dataloaders()
+
+        training_elbo = []
+        predictive_elbo = []
+
+        for i in trange(self.pretrain_epochs):
+            training_elbo.append(-self.train(train_loader))
+            predictive_elbo.append(self.eval(valid_loader))
+            logging.info(
+                f'epoch: {i} ELBO: {training_elbo[-1]}, predictive ELBO: {predictive_elbo[-1]}'
+            )
+        name = 'vae_pretrained_fashion_mnist'
+        self.save_model(name=name)
+        self.plot_latent_from_fine(loader=train_loader, name=name)
+        self.plot_reconstructed(name=name)
+        # self.save_metrics(training_elbo,
+        #                   name=name + '_training_elbo',
+        #                   phase='pretrain')
+        # self.save_metrics(predictive_elbo,
+        #                   name=name + '_predictive_elbo',
+        #                   phase='pretrain')
+
+    def finetune(self):
+        train_loader, valid_loader = self.create_finetuning_dataloaders()
+        self.model = VAE(n_latent_dims=2).to(self.device)
+        self.model.load_state_dict(
+            torch.load(
+                f'{self.save_dir}models/vae_pretrained_fashion_mnist.pt'))
+
+        # model surgery for image classification
+        self.old_decoder = self.model.decoder
+        self.model.decoder = nn.Linear(2, 10).to(self.device)
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        self.criterion = nn.CrossEntropyLoss()
+
+        training_loss = []
+        val_loss = []
+        training_accuracy = []
+        val_accuracy = []
+
+        for i in trange(self.finetune_epochs):
+            training_loss.append(self.finetune_train(train_loader))
+            val_loss.append(self.finetune_train(valid_loader))
+            training_accuracy.append(self.finetune_eval(train_loader))
+            val_accuracy.append(self.finetune_eval(valid_loader))
+
+            logging.info(
+                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}'
+            )
+
+        name = 'vae_pretrained_notmnist_finetune_mnist'
+        # self.save_model(name=name)
+        # self.plot_latent_from_fine(loader=train_loader, name=name)
+        # self.plot_reconstructed_from_fine(name=name)
+        # self.save_metrics(training_loss,
+        #                   name=name + '_train_loss',
+        #                   phase='finetune')
+        # self.save_metrics(val_accuracy,
+        #                   name=name + '_val_accuracy',
+        #                   phase='finetune')
+
+    def train(self, loader: DataLoader):
+        self.model.train()
+        running_loss = 0.0
+
+        for i, (x, y) in enumerate(loader):
+            self.optimizer.zero_grad()
+
+            x_hat = self.model(x.reshape((x.size(0), 784)).to(self.device))
+            loss = self.criterion(x_hat,
+                                  x.reshape((x.size(0), 784)).to(
+                                      self.device)) - self.model.encoder.kl
+
+            loss.backward()
+            running_loss += loss.item()
+
+            self.optimizer.step()
+
+        return running_loss / (len(loader) * loader.batch_size)
+
+    def eval(self, loader: DataLoader) -> float:
+        predictive_ELBO = 0.0
+
+        self.model.eval()
+        with torch.no_grad():
+            for i, (x, y) in enumerate(loader):
+                x_hat = self.model(x.reshape((x.size(0), 784)).to(self.device))
+                ELBO_batch = -self.criterion(
+                    x_hat,
+                    x.reshape((x.size(0), 784)).to(
+                        self.device)) + self.model.encoder.kl
+
+                predictive_ELBO += ELBO_batch.item()
+
+        return predictive_ELBO / (len(loader) * loader.batch_size)
+
+
+class VAENoPretrainingNotMNIST(VAEFashionMNIST2notMNISTTrainer):
+
+    def finetune(self):
+        train_loader, valid_loader = self.create_finetuning_dataloaders()
+        self.model = VAEForClassification(n_latent_dims=2,
+                                          n_out_dims=10).to(self.device)
+
+        # model surgery for image classification
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        self.criterion = nn.CrossEntropyLoss()
+
+        training_loss = []
+        val_loss = []
+        training_accuracy = []
+        val_accuracy = []
+
+        for i in trange(self.finetune_epochs):
+            training_loss.append(self.finetune_train(train_loader))
+            val_loss.append(self.finetune_train(valid_loader))
+            training_accuracy.append(self.finetune_eval(train_loader))
+            val_accuracy.append(self.finetune_eval(valid_loader))
+
+            logging.info(
+                f'epoch: {i} training loss: {training_loss[-1]:.3f} val loss:{val_loss[-1]:.3f} training accuracy: {training_accuracy[-1]:.3f} val acc: {val_accuracy[-1]:.3f}'
+            )
+
+        name = 'vae_no_pretraining_not_mnist'
+        #self.save_model(name=name)
+
+
+class VAEFashionMNIST2MNISTTrainer(VAENotMNIST2MNISTTrainer):
+
+    def create_pretraining_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
+        transform = transforms.Compose([transforms.ToTensor()])
+        MNIST_data_train = torchvision.datasets.FashionMNIST(
+            self.data_dir, train=True, transform=transform, download=False)
+
+        train_set, val_set = torch.utils.data.random_split(
+            MNIST_data_train, [50000, 10000])
+        train_loader = torch.utils.data.DataLoader(train_set,
+                                                   batch_size=self.batch_size,
+                                                   shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(
+            val_set, batch_size=len(MNIST_data_train), shuffle=False)
+        return train_loader, valid_loader
+
+    def finetune(self):
+        train_loader, valid_loader = self.create_finetuning_dataloaders()
+        self.model = VAE(n_latent_dims=2).to(self.device)
+        self.model.load_state_dict(
+            torch.load(
+                f'{self.save_dir}models/vae_pretrained_fashion_mnist.pt'))
 
         # model surgery for image classification
         self.old_decoder = self.model.decoder

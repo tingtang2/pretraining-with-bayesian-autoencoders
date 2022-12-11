@@ -7,13 +7,20 @@ import torch
 from torch.nn import MSELoss
 from torch.optim import AdamW, Adam
 
-from trainers.vae_trainer import VAENotMNIST2MNISTTrainer, VAENoPretrainingMNIST, VAENoPretrainingFashionMNIST, VAENotMNIST2FashionMNISTTrainer
+from trainers.vae_trainer import (
+    VAENotMNIST2MNISTTrainer, VAENoPretrainingMNIST,
+    VAENoPretrainingFashionMNIST, VAENotMNIST2FashionMNISTTrainer,
+    VAEFashionMNIST2notMNISTTrainer, VAENoPretrainingNotMNIST,
+    VAEFashionMNIST2MNISTTrainer)
 
 arg_trainer_map = {
     'vae': VAENotMNIST2MNISTTrainer,
     'vae_fashion': VAENotMNIST2FashionMNISTTrainer,
     'not_pretrained_vae': VAENoPretrainingMNIST,
-    'not_pretrained_vae_fashion': VAENoPretrainingFashionMNIST
+    'not_pretrained_vae_fashion': VAENoPretrainingFashionMNIST,
+    'vae_fashion_2_not': VAEFashionMNIST2notMNISTTrainer,
+    'not_pretrained_vae_not': VAENoPretrainingNotMNIST,
+    'vae_fashion_2_mnist': VAEFashionMNIST2MNISTTrainer
 }
 arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
 
@@ -25,11 +32,11 @@ def main() -> int:
     )
 
     parser.add_argument('--pretrain_epochs',
-                        default=300,
+                        default=100,
                         type=int,
                         help='number of epochs to pretrain model')
     parser.add_argument('--finetune_epochs',
-                        default=20,
+                        default=50,
                         type=int,
                         help='number of epochs to finetune model')
     parser.add_argument('--device',
