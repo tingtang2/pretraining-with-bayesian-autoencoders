@@ -72,6 +72,7 @@ class BaseTrainer(ABC):
         z_s = []
         with torch.no_grad():
             for i, (x, y) in enumerate(tqdm(loader)):
+                x = x.reshape(x.size(0), self.x_dim)
                 z, mu, sigma = self.model.encoder(x)
                 z_s.append(z.cpu().detach().numpy())
 

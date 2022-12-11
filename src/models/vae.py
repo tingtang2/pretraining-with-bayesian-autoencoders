@@ -5,12 +5,15 @@ from torch.nn import functional as F
 
 class VariationalEncoder(nn.Module):
 
-    def __init__(self, input_size=784, n_latent_dims=2) -> None:
+    def __init__(self,
+                 input_size=784,
+                 intermediate_size=512,
+                 n_latent_dims=2) -> None:
         super(VariationalEncoder, self).__init__()
 
-        self.input = nn.Linear(input_size, 512)
-        self.latent_mu = nn.Linear(512, n_latent_dims)
-        self.latent_sigma = nn.Linear(512, n_latent_dims)
+        self.input = nn.Linear(input_size, intermediate_size)
+        self.latent_mu = nn.Linear(intermediate_size, n_latent_dims)
+        self.latent_sigma = nn.Linear(intermediate_size, n_latent_dims)
 
         # q candidate distribution stats
         self.gaussian = torch.distributions.Normal(0, 1)
@@ -37,11 +40,14 @@ class VariationalEncoder(nn.Module):
 
 class Decoder(nn.Module):
 
-    def __init__(self, n_latent_dims, output_size=784) -> None:
+    def __init__(self,
+                 n_latent_dims,
+                 intermediate_size=512,
+                 output_size=784) -> None:
         super(Decoder, self).__init__()
 
-        self.latent_out = nn.Linear(n_latent_dims, 512)
-        self.out = nn.Linear(512, output_size)
+        self.latent_out = nn.Linear(n_latent_dims, intermediate_size)
+        self.out = nn.Linear(intermediate_size, output_size)
 
     def forward(self, x):
         z = F.relu(self.latent_out(x))
@@ -52,12 +58,18 @@ class Decoder(nn.Module):
 
 class VAE(nn.Module):
 
-    def __init__(self, n_latent_dims, input_size=784) -> None:
+    def __init__(self,
+                 n_latent_dims,
+                 intermediate_size=512,
+                 input_size=784) -> None:
         super(VAE, self).__init__()
 
         self.encoder = VariationalEncoder(input_size=input_size,
+                                          intermediate_size=intermediate_size,
                                           n_latent_dims=n_latent_dims)
-        self.decoder = Decoder(n_latent_dims=n_latent_dims)
+        self.decoder = Decoder(n_latent_dims=n_latent_dims,
+                               intermediate_size=intermediate_size,
+                               output_size=input_size)
 
     def forward(self, x) -> torch.Tensor:
         z, _, _ = self.encoder(x)
