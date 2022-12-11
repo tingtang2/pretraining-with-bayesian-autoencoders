@@ -14,6 +14,8 @@ from data import TinyImageNet
 from models.vae import VAE, VAEForClassification
 from trainers.base_trainer import BaseTrainer
 
+import math
+
 
 class VAEColorTrainer(BaseTrainer):
 
@@ -182,16 +184,21 @@ class VAETinyImageNetPreTrainer(VAEColorTrainer):
             logging.info(
                 f'epoch: {i} ELBO: {training_elbo[-1]}, predictive ELBO: {predictive_elbo[-1]}'
             )
+        # self.model = VAE(n_latent_dims=2,
+        #                  intermediate_size=2048,
+        #                  input_size=3072).to(self.device)
+        # self.model.load_state_dict(
+        #     torch.load(f'{self.save_dir}models/{self.pretrain_name}.pt'))
 
         self.save_model(name=self.pretrain_name)
         self.plot_latent(loader=train_loader, name=self.pretrain_name)
-        self.plot_reconstructed_color(name=self.pretrain_name)
-        self.save_metrics(training_elbo,
-                          name=self.pretrain_name + '_training_elbo',
-                          phase='pretrain')
-        self.save_metrics(predictive_elbo,
-                          name=self.pretrain_name + '_predictive_elbo',
-                          phase='pretrain')
+        # self.plot_reconstructed_color(name=self.pretrain_name)
+        # self.save_metrics(training_elbo,
+        #                   name=self.pretrain_name + '_training_elbo',
+        #                   phase='pretrain')
+        # self.save_metrics(predictive_elbo,
+        #                   name=self.pretrain_name + '_predictive_elbo',
+        #                   phase='pretrain')
 
     def create_finetuning_dataloaders(self):
         raise NotImplementedError
@@ -236,24 +243,25 @@ class VAETinyImageNetPreTrainer(VAEColorTrainer):
     def plot_reconstructed_color(self,
                                  r0=(-5, 10),
                                  r1=(-10, 5),
-                                 n=12,
+                                 n=3,
                                  name: str = 'default'):
-        w = 28
-        img = np.zeros((n * w, n * w))
+        w = int(math.sqrt(self.x_dim / 3))
+        img = np.zeros((n * w, n * w, 3))
         for i, y in enumerate(np.linspace(*r1, n)):
             for j, x in enumerate(np.linspace(*r0, n)):
-                z = torch.Tensor([[x, y]]).to(self.device)
+                z = torch.Tensor([[0, 0]]).to(self.device)
                 x_hat = self.model.decoder(z)
                 x_hat = x_hat.reshape(w, w, 3).cpu().detach().numpy()
+                fig = px.imshow(x_hat)
+                fig.write_image(self.save_dir +
+                                f'plots/{name}_reconstruction.png')
+                break
 
-                img[(n - 1 - i) * w:(n - 1 - i + 1) * w,
-                    j * w:(j + 1) * w, :] = x_hat
+                # img[(n - 1 - i) * w:(n - 1 - i + 1) * w,
+                #     j * w:(j + 1) * w, :] = x_hat
 
-        fig = px.imshow(img,
-                        color_continuous_scale=px.colors.sequential.Electric)
-
-        fig.update_layout(coloraxis_showscale=False)
-        fig.update_xaxes(showticklabels=False)
-        fig.update_yaxes(showticklabels=False)
-        fig.write_html(self.save_dir + f'plots/{name}_reconstruction.html')
-        fig.write_image(self.save_dir + f'plots/{name}_reconstruction.png')
+        # fig.update_layout(coloraxis_showscale=False)
+        # fig.update_xaxes(showticklabels=False)
+        # fig.update_yaxes(showticklabels=False)
+        # fig.write_html(self.save_dir + f'plots/{name}_reconstruction.html')
+        # fig.write_image(self.save_dir + f'plots/{name}_reconstruction.png')
