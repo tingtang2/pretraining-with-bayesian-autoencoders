@@ -52,10 +52,11 @@ class Decoder(nn.Module):
 
 class VAE(nn.Module):
 
-    def __init__(self, n_latent_dims) -> None:
+    def __init__(self, n_latent_dims, input_size=784) -> None:
         super(VAE, self).__init__()
 
-        self.encoder = VariationalEncoder(n_latent_dims=n_latent_dims)
+        self.encoder = VariationalEncoder(input_size=input_size,
+                                          n_latent_dims=n_latent_dims)
         self.decoder = Decoder(n_latent_dims=n_latent_dims)
 
     def forward(self, x) -> torch.Tensor:
@@ -65,9 +66,10 @@ class VAE(nn.Module):
 
 class VAEForClassification(nn.Module):
 
-    def __init__(self, n_latent_dims, n_out_dims) -> None:
+    def __init__(self, n_latent_dims, n_out_dims, input_size=784) -> None:
         super(VAEForClassification, self).__init__()
-        self.encoder = VariationalEncoder(n_latent_dims=n_latent_dims)
+        self.encoder = VariationalEncoder(input_size=input_size,
+                                          n_latent_dims=n_latent_dims)
         self.decoder = nn.Linear(n_latent_dims, n_out_dims)
 
     def forward(self, x) -> torch.Tensor:

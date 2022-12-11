@@ -16,6 +16,8 @@ from data import notMNISTDataset
 from models.vae import VAE, VAEForClassification
 from trainers.base_trainer import BaseTrainer
 
+# BIG TODO: FIX DATA LEAKAGE DON"T RUN ANY OF THIS UNTIL YOU DO:w:!!!!!!
+
 
 class VAETrainer(BaseTrainer):
 
@@ -89,6 +91,7 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
 
     def create_finetuning_dataloaders(self):
         transform = transforms.Compose([transforms.ToTensor()])
+        torch.manual_seed(self.seed)
         MNIST_data_train = torchvision.datasets.MNIST(self.data_dir,
                                                       train=True,
                                                       transform=transform,
