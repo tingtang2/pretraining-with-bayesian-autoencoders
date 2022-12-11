@@ -88,7 +88,7 @@ class VAEColorTrainer(BaseTrainer):
                     y.to(self.device) == torch.argmax(
                         y_hat, dim=-1)).detach().cpu().item()
 
-        running_loss += self.criterion(y_hat, y.to(self.device)).item()
+                running_loss += self.criterion(y_hat, y.to(self.device)).item()
 
         return num_right / len(loader.dataset), (running_loss /
                                                  len(loader.dataset))
@@ -119,8 +119,9 @@ class VAENoPretrainingCIFAR10Trainer(VAEColorTrainer):
         train_loader = torch.utils.data.DataLoader(train_set,
                                                    batch_size=self.batch_size,
                                                    shuffle=True)
-        valid_loader = torch.utils.data.DataLoader(
-            val_set, batch_size=len(CIFAR10_data_train), shuffle=False)
+        valid_loader = torch.utils.data.DataLoader(val_set,
+                                                   batch_size=len(val_set),
+                                                   shuffle=False)
         return train_loader, valid_loader
 
     def finetune(self):
@@ -133,7 +134,7 @@ class VAENoPretrainingCIFAR10Trainer(VAEColorTrainer):
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate,
                                              amsgrad=True)
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(reduction='sum')
 
         training_loss = []
         val_loss = []
