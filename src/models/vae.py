@@ -87,3 +87,19 @@ class VAEForClassification(nn.Module):
     def forward(self, x) -> torch.Tensor:
         z, _, _ = self.encoder(x)
         return self.decoder(z)
+
+
+class SA_VAE(VAE):
+
+    def __init__(self,
+                 n_latent_dims,
+                 intermediate_size=512,
+                 input_size=784) -> None:
+        super(SA_VAE, self).__init__(n_latent_dims, intermediate_size,
+                                     input_size)
+
+    def encode(self, x):
+        return self.encoder(x)
+
+    def decode(self, z):
+        return self.decoder(z)
