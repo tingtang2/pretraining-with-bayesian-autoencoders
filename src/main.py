@@ -15,6 +15,8 @@ from trainers.vae_trainer import (
 
 from trainers.vae_color_trainer import VAENoPretrainingCIFAR10Trainer, VAETinyImageNetPreTrainer
 
+from trainers.sa_vae_trainer import SA_VAENotMNIST2MNISTTrainer
+
 arg_trainer_map = {
     'vae': VAENotMNIST2MNISTTrainer,
     'vae_fashion': VAENotMNIST2FashionMNISTTrainer,
@@ -24,7 +26,8 @@ arg_trainer_map = {
     'not_pretrained_vae_not': VAENoPretrainingNotMNIST,
     'vae_fashion_2_mnist': VAEFashionMNIST2MNISTTrainer,
     'not_pretrained_vae_cifar10': VAENoPretrainingCIFAR10Trainer,
-    'pretrain_vae_tiny_imagenet': VAETinyImageNetPreTrainer
+    'pretrain_vae_tiny_imagenet': VAETinyImageNetPreTrainer,
+    'sa_vae_not_2_mnist': SA_VAENotMNIST2MNISTTrainer
 }
 arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
 

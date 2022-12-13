@@ -471,7 +471,8 @@ class VAENoPretrainingNotMNIST(VAEFashionMNIST2notMNISTTrainer):
 
         for i in trange(self.finetune_epochs):
             training_loss.append(self.finetune_train(train_loader))
-            val_loss.append(self.finetune_train(valid_loader))
+            # TODO: FIX THIS
+            # val_loss.append(self.finetune_train(valid_loader))
             training_accuracy.append(self.finetune_eval(train_loader))
             val_accuracy.append(self.finetune_eval(valid_loader))
 
@@ -521,7 +522,8 @@ class VAEFashionMNIST2MNISTTrainer(VAENotMNIST2MNISTTrainer):
 
         for i in trange(self.finetune_epochs):
             training_loss.append(self.finetune_train(train_loader))
-            val_loss.append(self.finetune_train(valid_loader))
+            # TODO: fix this
+            #val_loss.append(self.finetune_train(valid_loader))
             training_accuracy.append(self.finetune_eval(train_loader))
             val_accuracy.append(self.finetune_eval(valid_loader))
 

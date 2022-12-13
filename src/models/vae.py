@@ -103,3 +103,14 @@ class SA_VAE(VAE):
 
     def decode(self, z):
         return self.decoder(z)
+
+    def sample(self, mu, sigma, rand=None):
+        if rand is None:
+            z = mu + sigma * self.encoder.gaussian.sample(mu.shape)
+        else:
+            rand.requires_grad = True
+            z = mu + sigma * rand
+
+        self.kl = 0.5 * (1 + torch.log(sigma**2) - mu**2 - sigma**2).sum()
+
+        return z

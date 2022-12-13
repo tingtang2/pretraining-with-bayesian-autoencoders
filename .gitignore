@@ -129,4 +129,3 @@ dmypy.json
 .pyre/
 
 src/test_resize.ipynb
-src/test_color_trainer.ipynb

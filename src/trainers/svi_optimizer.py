@@ -11,7 +11,7 @@ class OptimN2N:
                  loss_fn,
                  model,
                  model_update_params,
-                 lr=[1],
+                 lr=[1, 1],
                  iters=20,
                  acc_param_grads=True,
                  max_grad_norm=0,
@@ -76,10 +76,13 @@ class OptimN2N:
         self.input_cache = [
             torch.zeros(x.size()).type_as(x) for x in self.input_grads
         ]
+
         self.all_z = []
+
         if self.acc_param_grads:
             for p in self.param_grads:
                 p.zero_()
+
         for k in range(self.iters):
             self.all_z.append(
                 Variable(
@@ -116,11 +119,11 @@ class OptimN2N:
                         k - 1] * self.momentum - input_grad_k[i].data
             lr_k_list = [lr for lr in self.lr]
             input = [
-                Variable(x.data + lr_k * p[k], requires_grad=True)
+                Variable(x + lr_k * p[k], requires_grad=True)
                 for x, p, lr_k in zip(input, self.mom_params, lr_k_list)
             ]
             if verbose:
-                print('mom', k, loss.data[0])
+                print('mom', k, loss.item())
         return input
 
     def backward_mom(self, grad_output, verbose=False):
@@ -129,7 +132,6 @@ class OptimN2N:
         rev_iters = self.iters
         for k in reversed(range(rev_iters)):
             lr_k_list = [lr for lr in self.lr]
-            input_k_grad = input_kp1_grad
             p_kp1_grad = [
                 p + lr_k * x
                 for p, x, lr_k in zip(p_kp1_grad, input_kp1_grad, lr_k_list)
