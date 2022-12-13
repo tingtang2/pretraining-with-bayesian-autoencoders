@@ -1,15 +1,14 @@
+import logging
 from typing import Tuple
 
 import torch
-from trainers.svi_optimizer import OptimN2N
 from torch.nn import MSELoss
 from torch.utils.data import DataLoader
-from trainers.vae_trainer import VAENotMNIST2MNISTTrainer
+from tqdm import trange
 
 from models.vae import SA_VAE
-
-from tqdm import trange
-import logging
+from trainers.svi_optimizer import OptimN2N
+from trainers.vae_trainer import VAENotMNIST2MNISTTrainer
 
 
 def variational_loss(input: Tuple,
@@ -36,15 +35,15 @@ class SA_VAENotMNIST2MNISTTrainer(VAENotMNIST2MNISTTrainer):
                             intermediate_size=512,
                             input_size=784).to(self.device)
         self.optimizer = self.optimizer_type(self.model.parameters(),
-                                             lr=self.learning_rate,
-                                             amsgrad=True)
+                                             lr=self.learning_rate)
 
         update_params = list(self.model.decoder.parameters())
-        self.max_grad_norm = 5
-        self.meta_optimizer = OptimN2N(loss_fn=variational_loss,
-                                       model=self.model,
-                                       model_update_params=update_params,
-                                       max_grad_norm=self.max_grad_norm)
+        self.meta_optimizer = OptimN2N(
+            loss_fn=variational_loss,
+            model=self.model,
+            lr=[self.svi_learning_rate_mu, self.svi_learning_rate_sigma],
+            model_update_params=update_params,
+            max_grad_norm=self.max_grad_norm)
 
     def train(self, loader: DataLoader):
         self.model.train()

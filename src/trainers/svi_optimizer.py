@@ -16,7 +16,8 @@ class OptimN2N:
                  acc_param_grads=True,
                  max_grad_norm=0,
                  eps=0.00001,
-                 momentum=0.5):
+                 momentum=0.5,
+                 seed=12122022):
 
         self.iters = iters
         self.lr = lr
@@ -25,6 +26,7 @@ class OptimN2N:
         self.max_grad_norm = max_grad_norm
         self.model = model
         self.momentum = momentum
+        self.seed = seed
         self.acc_param_grads = acc_param_grads
         if self.acc_param_grads:
             self.params = model_update_params
@@ -34,7 +36,7 @@ class OptimN2N:
             ]
 
     def forward(self, input, y, verbose=False):
-        self.seeds = np.random.randint(3435, size=self.iters)
+        self.seeds = np.random.randint(self.seed, size=self.iters)
         return self.forward_mom(input, y, verbose)
 
     def backward(self, grad_output, verbose=False):

@@ -72,6 +72,18 @@ def main() -> int:
                         default=1e-3,
                         type=float,
                         help='learning rate for optimizer')
+    parser.add_argument('--svi_learning_rate_mu',
+                        default=1,
+                        type=float,
+                        help='learning rate for SVI optimizer mean')
+    parser.add_argument('--svi_learning_rate_sigma',
+                        default=1,
+                        type=float,
+                        help='learning rate for SVI optimizer std deviation')
+    parser.add_argument('--max_grad_norm',
+                        default=5,
+                        type=float,
+                        help='norm threshold to get clipped at for SA VAE')
     parser.add_argument('--model_type',
                         default='vae',
                         help='type of model to use')
