@@ -64,7 +64,7 @@ def main() -> int:
                         help='path to saved model files')
     parser.add_argument('--data_dir',
                         default='/home/tingchen/data/',
-                        help='path to saved model files')
+                        help='path to data files')
     parser.add_argument('--optimizer',
                         default='adam',
                         help='type of optimizer to use')
@@ -107,6 +107,12 @@ def main() -> int:
     parser.add_argument('--perform_finetune',
                         action='store_true',
                         help='finetune model on dataset')
+    parser.add_argument('--bayesian_encoder',
+                        action='store_true',
+                        help='whether to use a bayesian NN encoder')
+    parser.add_argument('--bayesian_decoder',
+                        action='store_true',
+                        help='whether to use a bayesian NN decoder')
 
     args = parser.parse_args()
     configs = args.__dict__

@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
+from blitz.modules import BayesianLinear
 
 
 class VariationalEncoder(nn.Module):
@@ -8,12 +9,19 @@ class VariationalEncoder(nn.Module):
     def __init__(self,
                  input_size=784,
                  intermediate_size=512,
-                 n_latent_dims=2) -> None:
+                 n_latent_dims=2,
+                 bayesian=False) -> None:
         super(VariationalEncoder, self).__init__()
 
-        self.input = nn.Linear(input_size, intermediate_size)
-        self.latent_mu = nn.Linear(intermediate_size, n_latent_dims)
-        self.latent_sigma = nn.Linear(intermediate_size, n_latent_dims)
+        if bayesian:
+            print("init bayesian encoder!")
+            self.input = BayesianLinear(input_size, intermediate_size)
+            self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims)
+            self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims)
+        else:
+            self.input = nn.Linear(input_size, intermediate_size)
+            self.latent_mu = nn.Linear(intermediate_size, n_latent_dims)
+            self.latent_sigma = nn.Linear(intermediate_size, n_latent_dims)
 
         # q candidate distribution stats
         self.gaussian = torch.distributions.Normal(0, 1)
@@ -43,11 +51,18 @@ class Decoder(nn.Module):
     def __init__(self,
                  n_latent_dims,
                  intermediate_size=512,
-                 output_size=784) -> None:
+                 output_size=784,
+                 bayesian=False) -> None:
         super(Decoder, self).__init__()
 
-        self.latent_out = nn.Linear(n_latent_dims, intermediate_size)
-        self.out = nn.Linear(intermediate_size, output_size)
+        if bayesian:
+            print("init bayesian decoder!")
+            self.latent_out = BayesianLinear(n_latent_dims, intermediate_size)
+            self.out = BayesianLinear(intermediate_size, output_size)
+        else:
+            self.latent_out = nn.Linear(n_latent_dims, intermediate_size)
+            self.out = nn.Linear(intermediate_size, output_size)
+
 
     def forward(self, x):
         z = F.relu(self.latent_out(x))
@@ -61,15 +76,19 @@ class VAE(nn.Module):
     def __init__(self,
                  n_latent_dims,
                  intermediate_size=512,
-                 input_size=784) -> None:
+                 input_size=784,
+                 bayesian_encoder=False,
+                 bayesian_decoder=False) -> None:
         super(VAE, self).__init__()
 
         self.encoder = VariationalEncoder(input_size=input_size,
                                           intermediate_size=intermediate_size,
-                                          n_latent_dims=n_latent_dims)
+                                          n_latent_dims=n_latent_dims,
+                                          bayesian=bayesian_encoder)
         self.decoder = Decoder(n_latent_dims=n_latent_dims,
                                intermediate_size=intermediate_size,
-                               output_size=input_size)
+                               output_size=input_size,
+                               bayesian=bayesian_decoder)
 
     def forward(self, x) -> torch.Tensor:
         z, _, _ = self.encoder(x)

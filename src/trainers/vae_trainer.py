@@ -19,10 +19,10 @@ from trainers.base_trainer import BaseTrainer
 
 class VAETrainer(BaseTrainer):
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
         super(VAETrainer, self).__init__(**kwargs)
 
-        self.model = VAE(n_latent_dims=2).to(self.device)
+        self.model = VAE(n_latent_dims=2,  bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder).to(self.device)
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate,
                                              amsgrad=True)
@@ -47,16 +47,20 @@ class VAETrainer(BaseTrainer):
 
     def eval(self, loader: DataLoader) -> float:
         predictive_ELBO = 0.0
+        predictive_reconstruct_loss = 0.0
 
         self.model.eval()
         with torch.no_grad():
             for i, (x, y) in enumerate(loader):
                 x_hat = self.model(x)
-                ELBO_batch = -self.criterion(x_hat, x) + self.model.encoder.kl
+                reconstruct_loss_batch = self.criterion(x_hat, x)
+                ELBO_batch = -reconstruct_loss_batch + self.model.encoder.kl
 
+                predictive_reconstruct_loss += reconstruct_loss_batch.item()
                 predictive_ELBO += ELBO_batch.item()
-
-        return predictive_ELBO / (len(loader) * loader.batch_size)
+                
+        num_elements = len(loader) * loader.batch_size
+        return (predictive_reconstruct_loss / num_elements, predictive_ELBO / num_elements)
 
 
 class VAENotMNIST2MNISTTrainer(VAETrainer):
@@ -116,12 +120,16 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
 
         training_elbo = []
         predictive_elbo = []
+        predictive_reconstruct_loss = []
 
         for i in trange(self.pretrain_epochs):
             training_elbo.append(-self.train(train_loader))
-            predictive_elbo.append(self.eval(valid_loader))
+            elbo, rec_loss = self.eval(valid_loader)
+            predictive_elbo.append(elbo)
+            predictive_reconstruct_loss.append(rec_loss)
             logging.info(
-                f'epoch: {i} ELBO: {training_elbo[-1]}, predictive ELBO: {predictive_elbo[-1]}'
+                f'epoch: {i} ELBO: {training_elbo[-1]}, predictive ELBO: {predictive_elbo[-1]}, \
+                predictive reconstruct loss: {predictive_reconstruct_loss[-1]}'
             )
 
         self.save_model(name=self.pretrain_name)
@@ -132,6 +140,9 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
                           phase='pretrain')
         self.save_metrics(predictive_elbo,
                           name=self.pretrain_name + '_predictive_elbo',
+                          phase='pretrain')
+        self.save_metrics(predictive_reconstruct_loss,
+                          name=self.pretrain_name + '_predictive_reconstruct_loss',
                           phase='pretrain')
 
     def finetune_train(self, loader: DataLoader):
