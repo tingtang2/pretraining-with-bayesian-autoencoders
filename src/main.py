@@ -113,6 +113,11 @@ def main() -> int:
     parser.add_argument('--bayesian_decoder',
                         action='store_true',
                         help='whether to use a bayesian NN decoder')
+    parser.add_argument('--experiment_name',
+                        default="experiment",
+                        type=str,
+                        help='experiment name for the purposes of saving files')
+
 
     args = parser.parse_args()
     configs = args.__dict__
@@ -125,7 +130,8 @@ def main() -> int:
     torch.manual_seed(configs['seed'])
 
     # set up logging
-    filename = f'{configs["model_type"]}-pretraining-{configs["pretraining_inference_type"]}-fine_tuning-{configs["fine_tuning_inference_type"]}-{date.today()}'
+    filename = f'{configs["experiment_name"]}-{date.today()}'
+    # filename = f'{configs["model_type"]}-pretraining-{configs["pretraining_inference_type"]}-fine_tuning-{configs["fine_tuning_inference_type"]}-{date.today()}'
     FORMAT = '%(asctime)s;%(levelname)s;%(message)s'
     logging.basicConfig(level=logging.DEBUG,
                         filename=f'{configs["save_dir"]}logs/{filename}.log',

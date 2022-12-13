@@ -19,9 +19,9 @@ from trainers.base_trainer import BaseTrainer
 
 class VAETrainer(BaseTrainer):
 
-    def __init__(self, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
+    def __init__(self, experiment_name, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
         super(VAETrainer, self).__init__(**kwargs)
-
+        self.experiment_name = experiment_name
         self.model = VAE(n_latent_dims=2,  bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder).to(self.device)
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate,
@@ -67,7 +67,7 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
 
     def __init__(self, **kwargs) -> None:
         super(VAENotMNIST2MNISTTrainer, self).__init__(**kwargs)
-        self.pretrain_name = 'vae_pretrained_notmnist'
+        self.pretrain_name = 'vae_pretrained_notmnist' #not used anymore
         self.finetune_name = 'vae_pretrained_notmnist_finetune_mnist'
 
     def create_pretraining_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
@@ -132,17 +132,17 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
                 predictive reconstruct loss: {predictive_reconstruct_loss[-1]}'
             )
 
-        self.save_model(name=self.pretrain_name)
-        self.plot_latent(loader=train_loader, name=self.pretrain_name)
-        self.plot_reconstructed(name=self.pretrain_name)
+        self.save_model(name=self.experiment_name)
+        self.plot_latent(loader=train_loader, name=self.experiment_name)
+        self.plot_reconstructed(name=self.experiment_name)
         self.save_metrics(training_elbo,
-                          name=self.pretrain_name + '_training_elbo',
+                          name=self.experiment_name + '_training_elbo',
                           phase='pretrain')
         self.save_metrics(predictive_elbo,
-                          name=self.pretrain_name + '_predictive_elbo',
+                          name=self.experiment_name + '_predictive_elbo',
                           phase='pretrain')
         self.save_metrics(predictive_reconstruct_loss,
-                          name=self.pretrain_name + '_predictive_reconstruct_loss',
+                          name=self.experiment_name + '_predictive_reconstruct_loss',
                           phase='pretrain')
 
     def finetune_train(self, loader: DataLoader):
