@@ -17,7 +17,8 @@ class VariationalEncoder(nn.Module):
             print("init bayesian encoder!")
             self.input = BayesianLinear(input_size, intermediate_size)
             self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims)
-            self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims)
+            self.latent_sigma = BayesianLinear(intermediate_size,
+                                               n_latent_dims)
         else:
             self.input = nn.Linear(input_size, intermediate_size)
             self.latent_mu = nn.Linear(intermediate_size, n_latent_dims)
@@ -41,7 +42,11 @@ class VariationalEncoder(nn.Module):
         # reparameterization trick
         z = mu + sigma * self.gaussian.sample(mu.shape)
 
-        self.kl = 0.5 * (1 + torch.log(sigma**2) - mu**2 - sigma**2).sum()
+        sigma_squared = torch.nan_to_num(sigma**2)
+        assert torch.isinf(torch.log(sigma_squared)).any() == False
+
+        self.kl = 0.5 * (1 + torch.log(sigma_squared) - mu**2 -
+                         sigma_squared).sum()
 
         return z, mu, sigma
 
@@ -62,7 +67,6 @@ class Decoder(nn.Module):
         else:
             self.latent_out = nn.Linear(n_latent_dims, intermediate_size)
             self.out = nn.Linear(intermediate_size, output_size)
-
 
     def forward(self, x):
         z = F.relu(self.latent_out(x))
@@ -124,12 +128,17 @@ class SA_VAE(VAE):
         return self.decoder(z)
 
     def sample(self, mu, sigma, rand=None):
+        assert torch.all(sigma >= 0)
+
         if rand is None:
             z = mu + sigma * self.encoder.gaussian.sample(mu.shape)
         else:
             rand.requires_grad = True
             z = mu + sigma * rand
 
-        self.kl = 0.5 * (1 + torch.log(sigma**2) - mu**2 - sigma**2).sum()
+        sigma_squared = torch.nan_to_num(sigma**2)
+        assert torch.isinf(torch.log(sigma_squared)).any() == False
+        self.kl = 0.5 * (1 + torch.log(sigma_squared) - mu**2 -
+                         sigma_squared).sum()
 
         return z
