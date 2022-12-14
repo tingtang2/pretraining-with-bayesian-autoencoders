@@ -19,7 +19,7 @@ class VariationalEncoder(nn.Module):
             # self.input = BayesianLinear(input_size, intermediate_size, bias=False, posterior_mu_init=0.1)
             # self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
             # self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
-            self.input = LinearReparameterization(input_size, intermediate_size, prior_mean=1, posterior_mu_init=1, posterior_rho_init=3)
+            self.input = LinearReparameterization(input_size, intermediate_size) #, prior_mean=1, posterior_mu_init=1, posterior_rho_init=3
             self.latent_mu = LinearReparameterization(intermediate_size, n_latent_dims)
             self.latent_sigma = LinearReparameterization(intermediate_size, n_latent_dims)
         else:
@@ -42,9 +42,9 @@ class VariationalEncoder(nn.Module):
         # print("------")
         if self.bayesian:
             out = self.input(x, return_kl=False)
-            if torch.any(torch.isnan(out)):
-                print(x)
-                print(out)
+            # if torch.any(torch.isnan(out)):
+            #     print(x)
+            #     print(out)
             x = F.relu(out)
             mu = self.latent_mu(x, return_kl=False)
             sigma = torch.exp(self.latent_sigma(x, return_kl=False))
@@ -58,12 +58,14 @@ class VariationalEncoder(nn.Module):
         # print(torch.any(torch.isnan(x)), torch.any(torch.isnan(sigma)))
         # if torch.any(torch.isnan(x)):
         #     print(x)
-        assert torch.all(sigma >= 0)
+        sigma = torch.nan_to_num(sigma, nan=.01, neginf=.01)
+        assert torch.all(sigma > 0)
 
         # reparameterization trick
         z = mu + sigma * self.gaussian.sample(mu.shape)
 
-        sigma_squared = torch.nan_to_num(sigma**2)
+        sigma_squared = torch.nan_to_num(sigma**2, nan=.01, neginf=.01)
+        assert torch.all(sigma_squared > 0)
         assert torch.isinf(torch.log(sigma_squared)).any() == False
 
         self.kl = 0.5 * (1 + torch.log(sigma_squared) - mu**2 -
