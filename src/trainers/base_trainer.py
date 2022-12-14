@@ -72,7 +72,8 @@ class BaseTrainer(ABC):
         z_s = []
         with torch.no_grad():
             for i, (x, y) in enumerate(tqdm(loader)):
-                x = x.reshape(x.size(0), self.x_dim)
+                x = x.reshape(x.size(0), -1) #self.x_dim
+                x = x.to(self.device)
                 z, mu, sigma = self.model.encoder(x)
                 z_s.append(z.cpu().detach().numpy())
 
@@ -102,7 +103,11 @@ class BaseTrainer(ABC):
                            r1=(-10, 5),
                            n=12,
                            name: str = 'default'):
-        w = 28
+        if self.model_type == "vae_omniglot":
+            w = 105
+        else:
+            w = 28
+        print("w: {}".format(w))
         img = np.zeros((n * w, n * w))
         for i, y in enumerate(np.linspace(*r1, n)):
             for j, x in enumerate(np.linspace(*r0, n)):

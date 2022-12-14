@@ -35,16 +35,8 @@ class VariationalEncoder(nn.Module):
         self.bayesian = bayesian
 
     def forward(self, x):
-        # encode
-        # print("x:")
-        # print(torch.any(torch.isnan(x)))
-        # print(x)
-        # print("------")
         if self.bayesian:
             out = self.input(x, return_kl=False)
-            # if torch.any(torch.isnan(out)):
-            #     print(x)
-            #     print(out)
             x = F.relu(out)
             mu = self.latent_mu(x, return_kl=False)
             sigma = torch.exp(self.latent_sigma(x, return_kl=False))
@@ -53,11 +45,6 @@ class VariationalEncoder(nn.Module):
             mu = self.latent_mu(x)
             sigma = torch.exp(self.latent_sigma(x))
 
-        # nans = torch.isnan(x)
-        # x[nans] = 0
-        # print(torch.any(torch.isnan(x)), torch.any(torch.isnan(sigma)))
-        # if torch.any(torch.isnan(x)):
-        #     print(x)
         sigma = torch.nan_to_num(sigma, nan=.01, neginf=.01)
         assert torch.all(sigma > 0)
 

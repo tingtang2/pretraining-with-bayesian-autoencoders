@@ -34,13 +34,15 @@ class VAETrainer(BaseTrainer):
 
         for i, (x, y) in enumerate(loader):
             self.optimizer.zero_grad()
-
+            x = x.to(self.device) #need for omniglot pretraining
             x_hat = self.model(x)
+            nan = torch.isnan(x_hat).any()
+            assert(not(nan))
             loss = self.criterion(x_hat, x) - self.model.encoder.kl
-
             loss.backward()
             running_loss += loss.item()
-
+            # print("layer 1 grad: {}".format(self.model.encoder.input.mu_weight.grad))
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
             self.optimizer.step()
 
         return running_loss / (len(loader) * loader.batch_size)
@@ -52,6 +54,7 @@ class VAETrainer(BaseTrainer):
         self.model.eval()
         with torch.no_grad():
             for i, (x, y) in enumerate(loader):
+                x = x.to(self.device) #need for omniglot pretraining
                 x_hat = self.model(x)
                 reconstruct_loss_batch = self.criterion(x_hat, x)
                 ELBO_batch = -reconstruct_loss_batch + self.model.encoder.kl
@@ -134,7 +137,8 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
 
         self.save_model(name=self.experiment_name)
         self.plot_latent(loader=train_loader, name=self.experiment_name)
-        self.plot_reconstructed(name=self.experiment_name)
+        if self.model_type != "vae_omniglot":
+            self.plot_reconstructed(name=self.experiment_name)
         self.save_metrics(training_elbo,
                           name=self.experiment_name + '_training_elbo',
                           phase='pretrain')
@@ -258,6 +262,28 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
             title='Training set projected into learned latent space')
         fig.write_html(self.save_dir + f'plots/{name}_latent_space.html')
         fig.write_image(self.save_dir + f'plots/{name}_latent_space.png')
+
+
+class VAEOmniglotTrainer(VAENotMNIST2MNISTTrainer):
+
+    def __init__(self, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
+        super(VAEOmniglotTrainer, self).__init__(bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder, **kwargs)
+        self.model = VAE(n_latent_dims=48, input_size=11025, bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder).to(self.device)
+
+    def create_pretraining_dataloaders(self):
+        reshape = transforms.Lambda(lambda y: y.squeeze(0).reshape(-1))
+        transform = transforms.Compose([transforms.ToTensor(), reshape])
+        omniglot_train = torchvision.datasets.Omniglot(
+            root=self.data_dir, background=True, transform=transform, download=False
+        )
+        omniglot_val = torchvision.datasets.Omniglot(
+            root=self.data_dir, background=False, transform=transform, download=False
+        )
+        train_loader = torch.utils.data.DataLoader(omniglot_train, batch_size=self.batch_size, shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(omniglot_val, batch_size=self.batch_size, shuffle=True)
+        print("omniglot data shape: {}".format(omniglot_train.__getitem__(0)[0].shape))
+
+        return train_loader, valid_loader
 
 
 class VAENoPretrainingMNIST(VAENotMNIST2MNISTTrainer):
