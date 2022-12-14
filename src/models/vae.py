@@ -135,6 +135,7 @@ class SA_VAE(VAE):
                  input_size=784) -> None:
         super(SA_VAE, self).__init__(n_latent_dims, intermediate_size,
                                      input_size)
+        self.epsilon = 1e-08
 
     def encode(self, x):
         return self.encoder(x)
@@ -143,6 +144,7 @@ class SA_VAE(VAE):
         return self.decoder(z)
 
     def sample(self, mu, sigma, rand=None):
+        sigma = torch.relu(sigma) + self.epsilon
         assert torch.all(sigma >= 0)
 
         if rand is None:

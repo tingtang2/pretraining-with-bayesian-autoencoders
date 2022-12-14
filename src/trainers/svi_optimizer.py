@@ -12,12 +12,12 @@ class OptimN2N:
                  model,
                  model_update_params,
                  lr=[1, 1],
-                 iters=20,
+                 iters=80,
                  acc_param_grads=True,
                  max_grad_norm=0,
                  eps=0.00001,
                  momentum=0.5,
-                 seed=12122022):
+                 seed=3435):
 
         self.iters = iters
         self.lr = lr
@@ -69,7 +69,7 @@ class OptimN2N:
     def forward_mom(self, input, y, verbose=False):
         self.y = y
         self.input_grads = [
-            torch.zeros([self.iters] + list(x.size())).type_as(x.data)
+            torch.zeros([self.iters] + list(x.size())).type_as(x)
             for x in input
         ]
         self.mom_params = [
@@ -103,27 +103,29 @@ class OptimN2N:
             param_grads_k = all_grads_k[len(input):]
 
             if self.max_grad_norm > 0:
-                self.clip_grad_norm([input_grad_k[0].data], self.max_grad_norm)
-                self.clip_grad_norm([input_grad_k[1].data], self.max_grad_norm)
+                self.clip_grad_norm([input_grad_k[0]], self.max_grad_norm)
+                self.clip_grad_norm([input_grad_k[1]], self.max_grad_norm)
 
             if self.acc_param_grads:
                 for i, p in enumerate(param_grads_k):
-                    self.param_grads[i][k].copy_(p.data)
+                    self.param_grads[i][k].copy_(p)
             for i, x_grad_k in enumerate(input_grad_k):
-                self.input_cache[i][k].copy_(input[i].data)
-                self.input_grads[i][k].copy_(x_grad_k.data)
+                self.input_cache[i][k].copy_(input[i])
+                self.input_grads[i][k].copy_(x_grad_k)
 
             for i in range(len(self.mom_params)):
                 if k == 0:
-                    self.mom_params[i][k] = -input_grad_k[i].data
+                    self.mom_params[i][k] = -input_grad_k[i]
                 else:
                     self.mom_params[i][k] = self.mom_params[i][
-                        k - 1] * self.momentum - input_grad_k[i].data
+                        k - 1] * self.momentum - input_grad_k[i]
             lr_k_list = [lr for lr in self.lr]
             input = [
-                Variable(x + lr_k * p[k], requires_grad=True)
+                x + lr_k * p[k]
                 for x, p, lr_k in zip(input, self.mom_params, lr_k_list)
             ]
+            for param in input:
+                assert param.requires_grad == True
             if verbose:
                 print('mom', k, loss.item())
         return input
@@ -144,8 +146,8 @@ class OptimN2N:
             for i in range(len(p_kp1_grad)):
                 v = p_kp1_grad[i]
                 x_k = self.input_cache[i][k]
-                x_k_rv = Variable((x_k + r * v).type_as(x_k),
-                                  requires_grad=True)
+                x_k_rv = (x_k + r * v).type_as(x_k)
+                assert x_k_rv.required_grad == True
                 input_k_rv.append(x_k_rv)
             if self.acc_param_grads:
                 all_input_params = input_k_rv + self.params
