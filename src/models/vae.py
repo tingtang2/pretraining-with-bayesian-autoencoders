@@ -1,7 +1,8 @@
 import torch
 from torch import nn
 from torch.nn import functional as F
-from blitz.modules import BayesianLinear
+# from blitz.modules import BayesianLinear
+from bayesian_torch.layers import LinearReparameterization
 
 
 class VariationalEncoder(nn.Module):
@@ -14,10 +15,13 @@ class VariationalEncoder(nn.Module):
         super(VariationalEncoder, self).__init__()
 
         if bayesian:
-            print("init bayesian encoder!")
-            self.input = BayesianLinear(input_size, intermediate_size)
-            self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims)
-            self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims)
+            print("init bayesian encoder! with: {} latent dims".format(n_latent_dims))
+            # self.input = BayesianLinear(input_size, intermediate_size, bias=False, posterior_mu_init=0.1)
+            # self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
+            # self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
+            self.input = LinearReparameterization(input_size, intermediate_size, prior_mean=1, posterior_mu_init=1, posterior_rho_init=3)
+            self.latent_mu = LinearReparameterization(intermediate_size, n_latent_dims)
+            self.latent_sigma = LinearReparameterization(intermediate_size, n_latent_dims)
         else:
             self.input = nn.Linear(input_size, intermediate_size)
             self.latent_mu = nn.Linear(intermediate_size, n_latent_dims)
@@ -28,14 +32,32 @@ class VariationalEncoder(nn.Module):
         self.gaussian.loc = self.gaussian.loc.cuda()  # get sampling on the GPU
         self.gaussian.scale = self.gaussian.scale.cuda()
         self.kl = 0
+        self.bayesian = bayesian
 
     def forward(self, x):
         # encode
-        x = F.relu(self.input(x))
+        # print("x:")
+        # print(torch.any(torch.isnan(x)))
+        # print(x)
+        # print("------")
+        if self.bayesian:
+            out = self.input(x, return_kl=False)
+            if torch.any(torch.isnan(out)):
+                print(x)
+                print(out)
+            x = F.relu(out)
+            mu = self.latent_mu(x, return_kl=False)
+            sigma = torch.exp(self.latent_sigma(x, return_kl=False))
+        else:
+            x = F.relu(self.input(x))
+            mu = self.latent_mu(x)
+            sigma = torch.exp(self.latent_sigma(x))
 
-        mu = self.latent_mu(x)
-        sigma = torch.exp(self.latent_sigma(x))
-
+        # nans = torch.isnan(x)
+        # x[nans] = 0
+        # print(torch.any(torch.isnan(x)), torch.any(torch.isnan(sigma)))
+        # if torch.any(torch.isnan(x)):
+        #     print(x)
         assert torch.all(sigma >= 0)
 
         # reparameterization trick
@@ -54,19 +76,24 @@ class Decoder(nn.Module):
                  output_size=784,
                  bayesian=False) -> None:
         super(Decoder, self).__init__()
+        self.bayesian = bayesian
 
         if bayesian:
             print("init bayesian decoder!")
-            self.latent_out = BayesianLinear(n_latent_dims, intermediate_size)
-            self.out = BayesianLinear(intermediate_size, output_size)
+            self.latent_out = LinearReparameterization(n_latent_dims, intermediate_size)
+            self.out = LinearReparameterization(intermediate_size, output_size)
         else:
             self.latent_out = nn.Linear(n_latent_dims, intermediate_size)
             self.out = nn.Linear(intermediate_size, output_size)
 
 
     def forward(self, x):
-        z = F.relu(self.latent_out(x))
-        z = torch.sigmoid(self.out(z))
+        if self.bayesian:
+            z = F.relu(self.latent_out(x, return_kl=False))
+            z = torch.sigmoid(self.out(z, return_kl=False))
+        else:
+            z = F.relu(self.latent_out(x))
+            z = torch.sigmoid(self.out(z))
 
         return z
 
