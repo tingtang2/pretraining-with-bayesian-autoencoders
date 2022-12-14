@@ -15,7 +15,7 @@ from trainers.vae_trainer import (
 
 from trainers.vae_color_trainer import VAENoPretrainingCIFAR10Trainer, VAETinyImageNetPreTrainer
 
-from trainers.sa_vae_trainer import SA_VAENotMNIST2MNISTTrainer
+from trainers.sa_vae_trainer import SA_VAENotMNIST2MNISTTrainer, SVI_VAENotMNIST2MNISTTrainer
 
 arg_trainer_map = {
     'vae': VAENotMNIST2MNISTTrainer,
@@ -27,7 +27,8 @@ arg_trainer_map = {
     'vae_fashion_2_mnist': VAEFashionMNIST2MNISTTrainer,
     'not_pretrained_vae_cifar10': VAENoPretrainingCIFAR10Trainer,
     'pretrain_vae_tiny_imagenet': VAETinyImageNetPreTrainer,
-    'sa_vae_not_2_mnist': SA_VAENotMNIST2MNISTTrainer
+    'sa_vae_not_2_mnist': SA_VAENotMNIST2MNISTTrainer,
+    'svi_vae_not_2_mnist': SVI_VAENotMNIST2MNISTTrainer
 }
 arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
 
@@ -113,11 +114,11 @@ def main() -> int:
     parser.add_argument('--bayesian_decoder',
                         action='store_true',
                         help='whether to use a bayesian NN decoder')
-    parser.add_argument('--experiment_name',
-                        default="experiment",
-                        type=str,
-                        help='experiment name for the purposes of saving files')
-
+    parser.add_argument(
+        '--experiment_name',
+        default="experiment",
+        type=str,
+        help='experiment name for the purposes of saving files')
 
     args = parser.parse_args()
     configs = args.__dict__
