@@ -11,8 +11,12 @@ class VariationalEncoder(nn.Module):
                  input_size=784,
                  intermediate_size=512,
                  n_latent_dims=2,
-                 bayesian=False) -> None:
+                 bayesian=False,
+                 num_extra_layers=0) -> None:
         super(VariationalEncoder, self).__init__()
+
+        self.num_extra_layers = num_extra_layers
+        # self.extra_layers = {}
 
         if bayesian:
             print("init bayesian encoder! with: {} latent dims".format(
@@ -20,15 +24,17 @@ class VariationalEncoder(nn.Module):
             # self.input = BayesianLinear(input_size, intermediate_size, bias=False, posterior_mu_init=0.1)
             # self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
             # self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
-            self.input = LinearReparameterization(
-                input_size, intermediate_size
-            )  #, prior_mean=1, posterior_mu_init=1, posterior_rho_init=3
-            self.latent_mu = LinearReparameterization(intermediate_size,
-                                                      n_latent_dims)
-            self.latent_sigma = LinearReparameterization(
-                intermediate_size, n_latent_dims)
+            self.input = LinearReparameterization(input_size, intermediate_size) #, prior_mean=1, posterior_mu_init=1, posterior_rho_init=3
+            self.extra_layers = nn.ModuleList([LinearReparameterization(intermediate_size, intermediate_size) for _ in range(num_extra_layers)])
+            # for i in range(num_extra_layers):
+            #     self.extra_layers[i] = LinearReparameterization(intermediate_size, intermediate_size)
+            self.latent_mu = LinearReparameterization(intermediate_size, n_latent_dims)
+            self.latent_sigma = LinearReparameterization(intermediate_size, n_latent_dims)
         else:
             self.input = nn.Linear(input_size, intermediate_size)
+            self.extra_layers = nn.ModuleList([nn.Linear(intermediate_size, intermediate_size) for _ in range(num_extra_layers)])
+            # for i in range(num_extra_layers):
+            #     self.extra_layers[i] = nn.Linear(intermediate_size, intermediate_size)
             self.latent_mu = nn.Linear(intermediate_size, n_latent_dims)
             self.latent_sigma = nn.Linear(intermediate_size, n_latent_dims)
 
@@ -43,10 +49,14 @@ class VariationalEncoder(nn.Module):
         if self.bayesian:
             out = self.input(x, return_kl=False)
             x = F.relu(out)
+            for i in range(self.num_extra_layers):
+                x = self.extra_layers[i](x, return_kl=False)
             mu = self.latent_mu(x, return_kl=False)
             sigma = torch.exp(self.latent_sigma(x, return_kl=False))
         else:
             x = F.relu(self.input(x))
+            for i in range(self.num_extra_layers):
+                x = self.extra_layers[i](x)
             mu = self.latent_mu(x)
             sigma = torch.exp(self.latent_sigma(x))
 
@@ -72,25 +82,37 @@ class Decoder(nn.Module):
                  n_latent_dims,
                  intermediate_size=512,
                  output_size=784,
-                 bayesian=False) -> None:
+                 bayesian=False,
+                 num_extra_layers=0) -> None:
         super(Decoder, self).__init__()
         self.bayesian = bayesian
+        self.num_extra_layers = num_extra_layers
+        self.extra_layers = {}
 
         if bayesian:
             print("init bayesian decoder!")
-            self.latent_out = LinearReparameterization(n_latent_dims,
-                                                       intermediate_size)
+            self.latent_out = LinearReparameterization(n_latent_dims, intermediate_size)
+            self.extra_layers = nn.ModuleList([LinearReparameterization(intermediate_size, intermediate_size) for _ in range(num_extra_layers)])
+            # for i in range(num_extra_layers):
+            #     self.extra_layers[i] = LinearReparameterization(intermediate_size, intermediate_size)
             self.out = LinearReparameterization(intermediate_size, output_size)
         else:
             self.latent_out = nn.Linear(n_latent_dims, intermediate_size)
+            self.extra_layers = nn.ModuleList([nn.Linear(intermediate_size, intermediate_size) for _ in range(num_extra_layers)])
+            # for i in range(num_extra_layers):
+            #     self.extra_layers[i] = nn.Linear(intermediate_size, intermediate_size)
             self.out = nn.Linear(intermediate_size, output_size)
 
     def forward(self, x):
         if self.bayesian:
             z = F.relu(self.latent_out(x, return_kl=False))
+            for i in range(self.num_extra_layers):
+                z = self.extra_layers[i](z, return_kl=False)
             z = torch.sigmoid(self.out(z, return_kl=False))
         else:
             z = F.relu(self.latent_out(x))
+            for i in range(self.num_extra_layers):
+                z = self.extra_layers[i](z)
             z = torch.sigmoid(self.out(z))
 
         return z
@@ -103,17 +125,20 @@ class VAE(nn.Module):
                  intermediate_size=512,
                  input_size=784,
                  bayesian_encoder=False,
-                 bayesian_decoder=False) -> None:
+                 bayesian_decoder=False,
+                 num_extra_layers=0) -> None:
         super(VAE, self).__init__()
 
         self.encoder = VariationalEncoder(input_size=input_size,
                                           intermediate_size=intermediate_size,
                                           n_latent_dims=n_latent_dims,
-                                          bayesian=bayesian_encoder)
+                                          bayesian=bayesian_encoder,
+                                          num_extra_layers=num_extra_layers)
         self.decoder = Decoder(n_latent_dims=n_latent_dims,
                                intermediate_size=intermediate_size,
                                output_size=input_size,
-                               bayesian=bayesian_decoder)
+                               bayesian=bayesian_decoder,
+                               num_extra_layers=num_extra_layers)
 
     def forward(self, x) -> torch.Tensor:
         z, _, _ = self.encoder(x)
