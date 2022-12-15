@@ -10,7 +10,7 @@ import torchvision.transforms as transforms
 from sklearn.model_selection import train_test_split
 from torch import nn
 from torch.utils.data import DataLoader
-from tqdm import trange
+from tqdm import trange, tqdm
 
 from data import notMNISTDataset
 from models.vae import VAE, VAEForClassification
@@ -309,35 +309,48 @@ class ConvNetVAEOmniglotTrainer(VAEOmniglotTrainer):
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate,
                                              amsgrad=True)
-        self.pretrain_name = 'convnet_vae_just_pretrain_tiny_imagenet'
+        self.pretrain_name = 'convnet_vae_pretrain_omniglot'
 
     def train(self, loader: DataLoader):
         self.model.train()
         running_loss = 0.0
+        reconstruction_loss_total = 0.0
 
         for i, (x, y) in enumerate(loader):
             self.optimizer.zero_grad()
 
+            x = torch.bernoulli(x)
+
             loss, _ = self.model(x.to(self.device))
+
+            loss, reconstruction_loss = loss
 
             loss.backward()
             running_loss += loss.item()
+            reconstruction_loss_total += reconstruction_loss.item()
 
             self.optimizer.step()
 
-        return running_loss / (len(loader) * loader.batch_size)
+        return running_loss / (
+            len(loader) * loader.batch_size), reconstruction_loss_total / (
+                len(loader) * loader.batch_size)
 
     def eval(self, loader: DataLoader) -> Tuple[float, float]:
         predictive_ELBO = 0.0
+        reconstruction_loss_total = 0.0
 
         self.model.eval()
         with torch.no_grad():
             for i, (x, y) in enumerate(loader):
                 loss, _ = self.model(x.to(self.device))
+                loss, reconstruction_loss = loss
 
                 predictive_ELBO += loss.item()
+                reconstruction_loss_total += reconstruction_loss.item()
 
-        return predictive_ELBO / (len(loader) * loader.batch_size), 0
+        return predictive_ELBO / (
+            len(loader) * loader.batch_size), reconstruction_loss_total / (
+                len(loader) * loader.batch_size)
 
     def create_pretraining_dataloaders(self):
         transform = transforms.Compose(
@@ -361,6 +374,98 @@ class ConvNetVAEOmniglotTrainer(VAEOmniglotTrainer):
             omniglot_train.__getitem__(0)[0].shape))
 
         return train_loader, valid_loader
+
+    def pretrain(self):
+        train_loader, valid_loader = self.create_pretraining_dataloaders()
+
+        training_elbo = []
+        # trainin_reconstruct_loss = []
+        predictive_elbo = []
+        predictive_reconstruct_loss = []
+
+        for i in trange(self.pretrain_epochs):
+            elbo_train, rec_loss_train = self.train(train_loader)
+            training_elbo.append(-elbo_train)
+            elbo, rec_loss = self.eval(valid_loader)
+            predictive_elbo.append(-elbo)
+            predictive_reconstruct_loss.append(rec_loss)
+            logging.info(
+                f'epoch: {i} ELBO: {training_elbo[-1]}, training reconstruct loss: {rec_loss_train},  predictive ELBO: {predictive_elbo[-1]}, predictive reconstruct loss: {predictive_reconstruct_loss[-1]}'
+            )
+
+        self.save_model(name=self.experiment_name)
+        self.plot_latent(loader=train_loader, name=self.experiment_name)
+        if self.model_type != "vae_omniglot":
+            self.plot_reconstructed(name=self.experiment_name)
+        self.save_metrics(training_elbo,
+                          name=self.experiment_name + '_training_elbo',
+                          phase='pretrain')
+        self.save_metrics(predictive_elbo,
+                          name=self.experiment_name + '_predictive_elbo',
+                          phase='pretrain')
+        self.save_metrics(predictive_reconstruct_loss,
+                          name=self.experiment_name +
+                          '_predictive_reconstruct_loss',
+                          phase='pretrain')
+
+    def plot_latent(self, loader, name: str):
+        self.model.eval()
+
+        labels = []
+        z_s = []
+        with torch.no_grad():
+            for i, (x, y) in enumerate(tqdm(loader)):
+                mean, logvar = self.model.encode(x.to(self.device))
+                std = torch.exp(logvar / 2)
+                z = self.model.reparamatrize(mean, std)
+                z_s.append(z.cpu().detach().numpy())
+
+                labels += y.cpu().numpy().tolist()
+
+        z_s = np.vstack(z_s)
+        pd_dict = {
+            'first dimension': z_s[:, 0],
+            'second dimension': z_s[:, 1],
+            'labels': labels
+        }
+
+        df = pd.DataFrame(pd_dict)
+        df['labels'] = df['labels'].astype(str)
+
+        fig = px.scatter(
+            df,
+            x='first dimension',
+            y='second dimension',
+            color='labels',
+            title='Training set projected into learned latent space')
+        fig.write_html(self.save_dir + f'plots/{name}_latent_space.html')
+        fig.write_image(self.save_dir + f'plots/{name}_latent_space.png')
+
+    def plot_reconstructed(self,
+                           r0=(-5, 10),
+                           r1=(-10, 5),
+                           n=12,
+                           name: str = 'default'):
+        w = 104
+        print("w: {}".format(w))
+        img = np.zeros((n * w, n * w))
+        for i, y in enumerate(np.linspace(*r1, n)):
+            for j, x in enumerate(np.linspace(*r0, n)):
+                z = torch.Tensor([[x, y]]).to(self.device)
+                x_hat = self.model.decode(z)
+                x_hat = x_hat.reshape(w, w).cpu().detach().numpy()
+
+                img[(n - 1 - i) * w:(n - 1 - i + 1) * w,
+                    j * w:(j + 1) * w] = x_hat
+
+        fig = px.imshow(img,
+                        color_continuous_scale=px.colors.sequential.Electric)
+
+        fig.update_layout(coloraxis_showscale=False)
+        fig.update_xaxes(showticklabels=False)
+        fig.update_yaxes(showticklabels=False)
+        fig.write_html(self.save_dir + f'plots/{name}_reconstruction.html')
+        fig.write_image(self.save_dir + f'plots/{name}_reconstruction.png')
 
 
 class VAENoPretrainingMNIST(VAENotMNIST2MNISTTrainer):

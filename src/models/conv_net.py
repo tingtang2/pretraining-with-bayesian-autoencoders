@@ -90,6 +90,18 @@ class ConvNetVAE(nn.Module):
         kl_loss = kl_loss.sum(-1)
         return kl_loss
 
+    def new_kl_loss(self, mean, std):
+        sigma_squared = torch.nan_to_num(std**2, nan=.01, neginf=.01)
+        assert torch.all(sigma_squared > 0)
+        assert torch.isinf(torch.log(sigma_squared)).any() == False
+
+        return 0.5 * (1 + torch.log(sigma_squared) - mean**2 -
+                      sigma_squared).sum()
+
+    def new_gaussian_likelihood(self, inputs, outputs):
+        return self.criterion(outputs.reshape((outputs.size(0), -1)),
+                              inputs.reshape((inputs.size(0), -1)))
+
     def gaussian_likelihood(self, inputs, outputs, scale):
         dist = torch.distributions.Normal(outputs, torch.exp(scale))
         log_pxz = dist.log_prob(inputs)
@@ -99,13 +111,24 @@ class ConvNetVAE(nn.Module):
         kl_loss = self.kl_loss(z, mean, std)
         rec_loss = self.gaussian_likelihood(inputs, outputs, self.scale)
 
-        return torch.sum(kl_loss - rec_loss)
+        return torch.sum(kl_loss - rec_loss), rec_loss.sum()
+
+    def new_loss_fn(self, z, inputs, outputs, mean, std):
+        kl_loss = self.new_kl_loss(mean, std)
+        # kl_loss = self.kl_loss(z, mean, std)
+        rec_loss = self.new_gaussian_likelihood(inputs, outputs)
+
+        return torch.sum(-kl_loss + rec_loss), rec_loss.sum()
 
     def forward(self, inputs):
         mean, logvar = self.encode(inputs)
-        std = torch.exp(logvar / 2)
+        logvar = torch.nan_to_num(logvar, nan=.01, neginf=.01)
+
+        std = torch.exp(logvar / 2) + self.eps
+        assert torch.all(std > 0)
         z = self.reparamatrize(mean, std)
         outputs = self.decode(z)
 
-        loss = self.loss_fn(inputs, outputs, z, mean, std)
+        # loss = self.loss_fn(inputs, outputs, z, mean, std)
+        loss = self.new_loss_fn(z, inputs, outputs, mean, std)
         return loss, (outputs, z, mean, std)
