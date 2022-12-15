@@ -15,13 +15,18 @@ class VariationalEncoder(nn.Module):
         super(VariationalEncoder, self).__init__()
 
         if bayesian:
-            print("init bayesian encoder! with: {} latent dims".format(n_latent_dims))
+            print("init bayesian encoder! with: {} latent dims".format(
+                n_latent_dims))
             # self.input = BayesianLinear(input_size, intermediate_size, bias=False, posterior_mu_init=0.1)
             # self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
             # self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
-            self.input = LinearReparameterization(input_size, intermediate_size) #, prior_mean=1, posterior_mu_init=1, posterior_rho_init=3
-            self.latent_mu = LinearReparameterization(intermediate_size, n_latent_dims)
-            self.latent_sigma = LinearReparameterization(intermediate_size, n_latent_dims)
+            self.input = LinearReparameterization(
+                input_size, intermediate_size
+            )  #, prior_mean=1, posterior_mu_init=1, posterior_rho_init=3
+            self.latent_mu = LinearReparameterization(intermediate_size,
+                                                      n_latent_dims)
+            self.latent_sigma = LinearReparameterization(
+                intermediate_size, n_latent_dims)
         else:
             self.input = nn.Linear(input_size, intermediate_size)
             self.latent_mu = nn.Linear(intermediate_size, n_latent_dims)
@@ -73,7 +78,8 @@ class Decoder(nn.Module):
 
         if bayesian:
             print("init bayesian decoder!")
-            self.latent_out = LinearReparameterization(n_latent_dims, intermediate_size)
+            self.latent_out = LinearReparameterization(n_latent_dims,
+                                                       intermediate_size)
             self.out = LinearReparameterization(intermediate_size, output_size)
         else:
             self.latent_out = nn.Linear(n_latent_dims, intermediate_size)
@@ -145,7 +151,8 @@ class SA_VAE(VAE):
 
     def sample(self, mu, sigma, rand=None):
         sigma = torch.relu(sigma) + self.epsilon
-        assert torch.all(sigma >= 0)
+        # print(sigma)
+        assert torch.all(sigma > 0)
 
         if rand is None:
             z = mu + sigma * self.encoder.gaussian.sample(mu.shape)

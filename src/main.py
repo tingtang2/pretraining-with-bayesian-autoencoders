@@ -11,9 +11,10 @@ from trainers.vae_trainer import (
     VAENotMNIST2MNISTTrainer, VAENoPretrainingMNIST,
     VAENoPretrainingFashionMNIST, VAENotMNIST2FashionMNISTTrainer,
     VAEFashionMNIST2notMNISTTrainer, VAENoPretrainingNotMNIST,
-    VAEFashionMNIST2MNISTTrainer, VAEOmniglotTrainer)
+    VAEFashionMNIST2MNISTTrainer, VAEOmniglotTrainer,
+    ConvNetVAEOmniglotTrainer)
 
-from trainers.vae_color_trainer import VAENoPretrainingCIFAR10Trainer, VAETinyImageNetPreTrainer
+from trainers.vae_color_trainer import VAENoPretrainingCIFAR10Trainer, VAETinyImageNetPreTrainer, ConvNetVAECIFAR10PreTrainer
 
 from trainers.sa_vae_trainer import SA_VAENotMNIST2MNISTTrainer, SVI_VAENotMNIST2MNISTTrainer
 
@@ -27,9 +28,11 @@ arg_trainer_map = {
     'vae_fashion_2_mnist': VAEFashionMNIST2MNISTTrainer,
     'not_pretrained_vae_cifar10': VAENoPretrainingCIFAR10Trainer,
     'pretrain_vae_tiny_imagenet': VAETinyImageNetPreTrainer,
+    'pretrain_convnet_vae_cifar10': ConvNetVAECIFAR10PreTrainer,
     'sa_vae_not_2_mnist': SA_VAENotMNIST2MNISTTrainer,
     'svi_vae_not_2_mnist': SVI_VAENotMNIST2MNISTTrainer,
-    'vae_omniglot': VAEOmniglotTrainer
+    'vae_omniglot': VAEOmniglotTrainer,
+    'conv_vae_omniglot': ConvNetVAEOmniglotTrainer
 }
 arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
 
@@ -120,6 +123,19 @@ def main() -> int:
         default="experiment",
         type=str,
         help='experiment name for the purposes of saving files')
+    parser.add_argument(
+        '--num_svi_iterations',
+        default=20,
+        type=int,
+        help='number of iterations to run svi meta optimizer for')
+
+    parser.add_argument('--beta_svi',
+                        default=1.0,
+                        type=float,
+                        help='constant to control strength of kl')
+    parser.add_argument('--grad_clip_vae',
+                        action='store_true',
+                        help='whether to clip the gradients on the vae')
 
     args = parser.parse_args()
     configs = args.__dict__
@@ -135,7 +151,7 @@ def main() -> int:
     filename = f'{configs["experiment_name"]}-{date.today()}'
     # filename = f'{configs["model_type"]}-pretraining-{configs["pretraining_inference_type"]}-fine_tuning-{configs["fine_tuning_inference_type"]}-{date.today()}'
     FORMAT = '%(asctime)s;%(levelname)s;%(message)s'
-    logging.basicConfig(level=logging.DEBUG,
+    logging.basicConfig(level=logging.INFO,
                         filename=f'{configs["save_dir"]}logs/{filename}.log',
                         filemode='a',
                         format=FORMAT)

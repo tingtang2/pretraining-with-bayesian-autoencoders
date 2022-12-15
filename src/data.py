@@ -53,7 +53,7 @@ class TinyImageNet:
             transforms.Compose([
                 # transforms.RandomCrop(size=64, padding=4),
                 # transforms.RandomHorizontalFlip(),
-                transforms.Resize(size=32),
+                # transforms.Resize(size=32),
                 transforms.ToTensor()
                 # normalize,
             ]),
@@ -67,7 +67,7 @@ class TinyImageNet:
         val_dataset = datasets.ImageFolder(
             valdir,
             transforms.Compose([
-                transforms.Resize(size=32),
+                # transforms.Resize(size=32),
                 transforms.ToTensor()
                 # normalize,
             ]),
