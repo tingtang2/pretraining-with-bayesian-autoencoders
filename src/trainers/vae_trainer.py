@@ -15,14 +15,18 @@ from tqdm import trange
 from data import notMNISTDataset
 from models.vae import VAE, VAEForClassification
 from trainers.base_trainer import BaseTrainer
+from models.conv_net import ConvNetVAE
 
 
 class VAETrainer(BaseTrainer):
 
-    def __init__(self, experiment_name, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
+    def __init__(self, experiment_name, bayesian_encoder, bayesian_decoder,
+                 **kwargs) -> None:
         super(VAETrainer, self).__init__(**kwargs)
         self.experiment_name = experiment_name
-        self.model = VAE(n_latent_dims=2,  bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder).to(self.device)
+        self.model = VAE(n_latent_dims=2,
+                         bayesian_encoder=bayesian_encoder,
+                         bayesian_decoder=bayesian_decoder).to(self.device)
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate,
                                              amsgrad=True)
@@ -34,15 +38,16 @@ class VAETrainer(BaseTrainer):
 
         for i, (x, y) in enumerate(loader):
             self.optimizer.zero_grad()
-            x = x.to(self.device) #need for omniglot pretraining
+            x = x.to(self.device)  #need for omniglot pretraining
             x_hat = self.model(x)
             nan = torch.isnan(x_hat).any()
-            assert(not(nan))
+            assert (not (nan))
             loss = self.criterion(x_hat, x) - self.model.encoder.kl
             loss.backward()
             running_loss += loss.item()
             # print("layer 1 grad: {}".format(self.model.encoder.input.mu_weight.grad))
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=10)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(),
+                                           max_norm=10)
             self.optimizer.step()
 
         return running_loss / (len(loader) * loader.batch_size)
@@ -54,23 +59,24 @@ class VAETrainer(BaseTrainer):
         self.model.eval()
         with torch.no_grad():
             for i, (x, y) in enumerate(loader):
-                x = x.to(self.device) #need for omniglot pretraining
+                x = x.to(self.device)  #need for omniglot pretraining
                 x_hat = self.model(x)
                 reconstruct_loss_batch = self.criterion(x_hat, x)
                 ELBO_batch = -reconstruct_loss_batch + self.model.encoder.kl
 
                 predictive_reconstruct_loss += reconstruct_loss_batch.item()
                 predictive_ELBO += ELBO_batch.item()
-                
+
         num_elements = len(loader) * loader.batch_size
-        return (predictive_reconstruct_loss / num_elements, predictive_ELBO / num_elements)
+        return (predictive_reconstruct_loss / num_elements,
+                predictive_ELBO / num_elements)
 
 
 class VAENotMNIST2MNISTTrainer(VAETrainer):
 
     def __init__(self, **kwargs) -> None:
         super(VAENotMNIST2MNISTTrainer, self).__init__(**kwargs)
-        self.pretrain_name = 'vae_pretrained_notmnist' #not used anymore
+        self.pretrain_name = 'vae_pretrained_notmnist'  #not used anymore
         self.finetune_name = 'vae_pretrained_notmnist_finetune_mnist'
 
     def create_pretraining_dataloaders(self) -> Tuple[DataLoader, DataLoader]:
@@ -146,7 +152,8 @@ class VAENotMNIST2MNISTTrainer(VAETrainer):
                           name=self.experiment_name + '_predictive_elbo',
                           phase='pretrain')
         self.save_metrics(predictive_reconstruct_loss,
-                          name=self.experiment_name + '_predictive_reconstruct_loss',
+                          name=self.experiment_name +
+                          '_predictive_reconstruct_loss',
                           phase='pretrain')
 
     def finetune_train(self, loader: DataLoader):
@@ -274,15 +281,85 @@ class VAEOmniglotTrainer(VAENotMNIST2MNISTTrainer):
     def create_pretraining_dataloaders(self):
         reshape = transforms.Lambda(lambda y: y.squeeze(0).reshape(-1))
         transform = transforms.Compose([transforms.ToTensor(), reshape])
-        omniglot_train = torchvision.datasets.Omniglot(
-            root=self.data_dir, background=True, transform=transform, download=False
-        )
-        omniglot_val = torchvision.datasets.Omniglot(
-            root=self.data_dir, background=False, transform=transform, download=False
-        )
-        train_loader = torch.utils.data.DataLoader(omniglot_train, batch_size=self.batch_size, shuffle=True)
-        valid_loader = torch.utils.data.DataLoader(omniglot_val, batch_size=self.batch_size, shuffle=True)
-        print("omniglot data shape: {}".format(omniglot_train.__getitem__(0)[0].shape))
+        omniglot_train = torchvision.datasets.Omniglot(root=self.data_dir,
+                                                       background=True,
+                                                       transform=transform,
+                                                       download=False)
+        omniglot_val = torchvision.datasets.Omniglot(root=self.data_dir,
+                                                     background=False,
+                                                     transform=transform,
+                                                     download=False)
+        train_loader = torch.utils.data.DataLoader(omniglot_train,
+                                                   batch_size=self.batch_size,
+                                                   shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(omniglot_val,
+                                                   batch_size=self.batch_size,
+                                                   shuffle=True)
+        print("omniglot data shape: {}".format(
+            omniglot_train.__getitem__(0)[0].shape))
+
+        return train_loader, valid_loader
+
+
+class ConvNetVAEOmniglotTrainer(VAEOmniglotTrainer):
+
+    def __init__(self, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
+        super(ConvNetVAEOmniglotTrainer,
+              self).__init__(bayesian_encoder, bayesian_decoder, **kwargs)
+        self.model = ConvNetVAE(latent_dim=2).to(self.device)
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        self.pretrain_name = 'convnet_vae_just_pretrain_tiny_imagenet'
+
+    def train(self, loader: DataLoader):
+        self.model.train()
+        running_loss = 0.0
+
+        for i, (x, y) in enumerate(loader):
+            self.optimizer.zero_grad()
+
+            loss, _ = self.model(x.to(self.device))
+
+            loss.backward()
+            running_loss += loss.item()
+
+            self.optimizer.step()
+
+        return running_loss / (len(loader) * loader.batch_size)
+
+    def eval(self, loader: DataLoader) -> Tuple[float, float]:
+        predictive_ELBO = 0.0
+
+        self.model.eval()
+        with torch.no_grad():
+            for i, (x, y) in enumerate(loader):
+                loss, _ = self.model(x.to(self.device))
+
+                predictive_ELBO += loss.item()
+
+        return predictive_ELBO / (len(loader) * loader.batch_size), 0
+
+    def create_pretraining_dataloaders(self):
+        transform = transforms.Compose(
+            [transforms.ToTensor(),
+             transforms.Resize(size=104)])
+        omniglot_train = torchvision.datasets.Omniglot(root=self.data_dir,
+                                                       background=True,
+                                                       transform=transform,
+                                                       download=False)
+        omniglot_val = torchvision.datasets.Omniglot(root=self.data_dir,
+                                                     background=False,
+                                                     transform=transform,
+                                                     download=False)
+        train_loader = torch.utils.data.DataLoader(omniglot_train,
+                                                   batch_size=self.batch_size,
+                                                   shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(omniglot_val,
+                                                   batch_size=self.batch_size,
+                                                   shuffle=True)
+        print("omniglot data shape: {}".format(
+            omniglot_train.__getitem__(0)[0].shape))
 
         return train_loader, valid_loader
 

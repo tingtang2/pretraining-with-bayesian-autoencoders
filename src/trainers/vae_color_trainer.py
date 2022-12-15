@@ -12,6 +12,7 @@ from tqdm import trange
 
 from data import TinyImageNet
 from models.vae import VAE, VAEForClassification
+from models.conv_net import ConvNetVAE
 from trainers.base_trainer import BaseTrainer
 
 import math
@@ -169,7 +170,7 @@ class VAETinyImageNetPreTrainer(VAEColorTrainer):
 
     def create_pretraining_dataloaders(self):
         loaded_tiny_imagenet = TinyImageNet(data_dir=self.data_dir,
-                                            num_workers=2)
+                                            num_workers=1)
         return loaded_tiny_imagenet.train_loader, loaded_tiny_imagenet.val_loader
 
     def pretrain(self):
@@ -192,7 +193,7 @@ class VAETinyImageNetPreTrainer(VAEColorTrainer):
 
         self.save_model(name=self.pretrain_name)
         self.plot_latent(loader=train_loader, name=self.pretrain_name)
-        # self.plot_reconstructed_color(name=self.pretrain_name)
+        self.plot_reconstructed_color(name=self.pretrain_name)
         # self.save_metrics(training_elbo,
         #                   name=self.pretrain_name + '_training_elbo',
         #                   phase='pretrain')
@@ -265,3 +266,65 @@ class VAETinyImageNetPreTrainer(VAEColorTrainer):
         # fig.update_yaxes(showticklabels=False)
         # fig.write_html(self.save_dir + f'plots/{name}_reconstruction.html')
         # fig.write_image(self.save_dir + f'plots/{name}_reconstruction.png')
+
+
+#################################################################################################
+# attempt to integrate resnet
+
+
+class ConvNetVAECIFAR10PreTrainer(VAETinyImageNetPreTrainer):
+
+    def __init__(self, **kwargs) -> None:
+        super(ConvNetVAECIFAR10PreTrainer, self).__init__(**kwargs)
+        self.model = ConvNetVAE(latent_dim=2).to(self.device)
+        self.optimizer = self.optimizer_type(self.model.parameters(),
+                                             lr=self.learning_rate,
+                                             amsgrad=True)
+        # self.x_dim = 3072
+        self.pretrain_name = 'convnet_vae_just_pretrain_tiny_imagenet'
+
+    def train(self, loader: DataLoader):
+        self.model.train()
+        running_loss = 0.0
+
+        for i, (x, y) in enumerate(loader):
+            self.optimizer.zero_grad()
+
+            loss, _ = self.model(x.to(self.device))
+
+            loss.backward()
+            running_loss += loss.item()
+
+            self.optimizer.step()
+
+        return running_loss / (len(loader) * loader.batch_size)
+
+    def eval(self, loader: DataLoader) -> float:
+        predictive_ELBO = 0.0
+
+        self.model.eval()
+        with torch.no_grad():
+            for i, (x, y) in enumerate(loader):
+                loss, _ = self.model(x.to(self.device))
+
+                predictive_ELBO += loss.item()
+
+        return predictive_ELBO / (len(loader) * loader.batch_size)
+
+    def create_pretraining_dataloaders(self):
+        transform = transforms.Compose([transforms.ToTensor()])
+        CIFAR10_data_train = torchvision.datasets.CIFAR10(self.data_dir,
+                                                          train=True,
+                                                          transform=transform,
+                                                          download=False)
+
+        torch.manual_seed(self.seed)
+        train_set, val_set = torch.utils.data.random_split(
+            CIFAR10_data_train, [40000, 10000])
+        train_loader = torch.utils.data.DataLoader(train_set,
+                                                   batch_size=self.batch_size,
+                                                   shuffle=True)
+        valid_loader = torch.utils.data.DataLoader(val_set,
+                                                   batch_size=len(val_set),
+                                                   shuffle=False)
+        return train_loader, valid_loader

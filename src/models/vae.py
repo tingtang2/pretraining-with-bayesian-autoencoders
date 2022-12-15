@@ -19,7 +19,8 @@ class VariationalEncoder(nn.Module):
         # self.extra_layers = {}
 
         if bayesian:
-            print("init bayesian encoder! with: {} latent dims".format(n_latent_dims))
+            print("init bayesian encoder! with: {} latent dims".format(
+                n_latent_dims))
             # self.input = BayesianLinear(input_size, intermediate_size, bias=False, posterior_mu_init=0.1)
             # self.latent_mu = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
             # self.latent_sigma = BayesianLinear(intermediate_size, n_latent_dims, bias=False, posterior_mu_init=0.1)
@@ -175,7 +176,8 @@ class SA_VAE(VAE):
 
     def sample(self, mu, sigma, rand=None):
         sigma = torch.relu(sigma) + self.epsilon
-        assert torch.all(sigma >= 0)
+        # print(sigma)
+        assert torch.all(sigma > 0)
 
         if rand is None:
             z = mu + sigma * self.encoder.gaussian.sample(mu.shape)
