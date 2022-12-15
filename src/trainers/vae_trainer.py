@@ -276,7 +276,6 @@ class VAEOmniglotTrainer(VAENotMNIST2MNISTTrainer):
     def __init__(self, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
         super(VAEOmniglotTrainer, self).__init__(bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder, **kwargs)
         self.model = VAE(n_latent_dims=64, intermediate_size=2048, input_size=11025, bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder, num_extra_layers=10).to(self.device)
-        print(self.model)
 
     def create_pretraining_dataloaders(self):
         reshape = transforms.Lambda(lambda y: y.squeeze(0).reshape(-1))
@@ -306,7 +305,7 @@ class ConvNetVAEOmniglotTrainer(VAEOmniglotTrainer):
     def __init__(self, bayesian_encoder, bayesian_decoder, **kwargs) -> None:
         super(ConvNetVAEOmniglotTrainer,
               self).__init__(bayesian_encoder, bayesian_decoder, **kwargs)
-        self.model = ConvNetVAE(latent_dim=2).to(self.device)
+        self.model = ConvNetVAE(latent_dim=2, bayesian_encoder=bayesian_encoder, bayesian_decoder=bayesian_decoder).to(self.device)
         self.optimizer = self.optimizer_type(self.model.parameters(),
                                              lr=self.learning_rate,
                                              amsgrad=True)

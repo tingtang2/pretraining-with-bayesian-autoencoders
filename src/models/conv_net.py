@@ -1,44 +1,77 @@
 from torch import nn
 import torch
+from bayesian_torch.layers import LinearReparameterization, Conv2dReparameterization, ConvTranspose2dReparameterization
 
 
 # code from https://www.kaggle.com/code/maunish/training-vae-on-imagenet-pytorch
 class ConvNetVAE(nn.Module):
 
-    def __init__(self, latent_dim=2):
+    def __init__(self, latent_dim=2, bayesian_encoder=False, bayesian_decoder=False):
         super().__init__()
 
         self.latent_dim = latent_dim
         self.shape = 26
 
+        self.bayesian_encoder = bayesian_encoder
+        self.bayesian_decoder = bayesian_decoder
+
         #encode
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=2)
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2)
+        if bayesian_encoder:
+            print("init bayesian conv encoder")
+            self.conv1 = Conv2dReparameterization(1, 32, kernel_size=3, stride=2)
+            self.conv2 = Conv2dReparameterization(32, 64, kernel_size=3, stride=2)
+            self.fc1 = LinearReparameterization(64*(self.shape-1)**2, 2 * self.latent_dim)
+        else:
+            self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=2)
+            self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2)
+            self.fc1 = nn.Linear(64*(self.shape-1)**2, 2 * self.latent_dim)
+            
+
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(64*(self.shape-1)**2, 2 * self.latent_dim)
         self.relu = nn.ReLU()
         self.scale = nn.Parameter(torch.tensor([0.0]))
 
         #decode
-        self.fc2 = nn.Linear(self.latent_dim, (self.shape**2) * 32)
-        self.conv3 = nn.ConvTranspose2d(32, 64, kernel_size=2, stride=2)
-        self.conv4 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
-        self.conv5 = nn.ConvTranspose2d(32, 1, kernel_size=1, stride=1)
+        if bayesian_decoder:
+            print("init bayesian conv decoder")
+            self.fc2 = LinearReparameterization(self.latent_dim, (self.shape**2) * 32)
+            self.conv3 = ConvTranspose2dReparameterization(32, 64, kernel_size=2, stride=2)
+            self.conv4 = ConvTranspose2dReparameterization(64, 32, kernel_size=2, stride=2)
+            self.conv5 = ConvTranspose2dReparameterization(32, 1, kernel_size=1, stride=1)
+        else:
+            self.fc2 = nn.Linear(self.latent_dim, (self.shape**2) * 32)
+            self.conv3 = nn.ConvTranspose2d(32, 64, kernel_size=2, stride=2)
+            self.conv4 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
+            self.conv5 = nn.ConvTranspose2d(32, 1, kernel_size=1, stride=1)
 
     def encode(self, x):
-        x = self.relu(self.conv1(x))
-        x = self.relu(self.conv2(x))
-        x = self.relu(self.flatten(x))
-        x = self.fc1(x)
+        if self.bayesian_encoder:
+            x = self.relu(self.conv1(x, return_kl=False))
+            x = self.relu(self.conv2(x, return_kl=False))
+            x = self.relu(self.flatten(x, return_kl=False))
+            x = self.fc1(x, return_kl=False)
+        else:
+            x = self.relu(self.conv1(x))
+            x = self.relu(self.conv2(x))
+            x = self.relu(self.flatten(x))
+            x = self.fc1(x)
+        
         mean, logvar = torch.split(x, self.latent_dim, dim=1)
         return mean, logvar
 
     def decode(self, eps):
-        x = self.relu(self.fc2(eps))
-        x = torch.reshape(x, (x.shape[0], 32, self.shape, self.shape))
-        x = self.relu(self.conv3(x))
-        x = self.relu(self.conv4(x))
-        x = self.conv5(x)
+        if self.bayesian_decoder:
+            x = self.relu(self.fc2(eps, return_kl=False))
+            x = torch.reshape(x, (x.shape[0], 32, self.shape, self.shape))
+            x = self.relu(self.conv3(x, return_kl=False))
+            x = self.relu(self.conv4(x, return_kl=False))
+            x = self.conv5(x, return_kl=False)
+        else:
+            x = self.relu(self.fc2(eps))
+            x = torch.reshape(x, (x.shape[0], 32, self.shape, self.shape))
+            x = self.relu(self.conv3(x))
+            x = self.relu(self.conv4(x))
+            x = self.conv5(x)
         return x
 
     def reparamatrize(self, mean, std):
