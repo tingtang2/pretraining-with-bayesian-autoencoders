@@ -30,6 +30,8 @@ class ConvNetVAE(nn.Module):
         self.flatten = nn.Flatten()
         self.relu = nn.ReLU()
         self.scale = nn.Parameter(torch.tensor([0.0]))
+        self.criterion = nn.MSELoss(reduction='sum')
+        self.eps = 1e-8
 
         #decode
         if bayesian_decoder:
@@ -48,7 +50,7 @@ class ConvNetVAE(nn.Module):
         if self.bayesian_encoder:
             x = self.relu(self.conv1(x, return_kl=False))
             x = self.relu(self.conv2(x, return_kl=False))
-            x = self.relu(self.flatten(x, return_kl=False))
+            x = self.relu(self.flatten(x))
             x = self.fc1(x, return_kl=False)
         else:
             x = self.relu(self.conv1(x))
@@ -122,6 +124,8 @@ class ConvNetVAE(nn.Module):
 
     def forward(self, inputs):
         mean, logvar = self.encode(inputs)
+        mean = torch.nan_to_num(mean, nan=.01, neginf=.01)
+        mean = mean.clamp(min=self.eps)
         logvar = torch.nan_to_num(logvar, nan=.01, neginf=.01)
 
         std = torch.exp(logvar / 2) + self.eps

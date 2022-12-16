@@ -417,6 +417,10 @@ class ConvNetVAEOmniglotTrainer(VAEOmniglotTrainer):
             for i, (x, y) in enumerate(tqdm(loader)):
                 mean, logvar = self.model.encode(x.to(self.device))
                 std = torch.exp(logvar / 2)
+                mean = torch.nan_to_num(mean)
+                mean = mean.clamp(min=self.model.eps)
+                std = torch.nan_to_num(std)
+                std = std.clamp(min=self.model.eps)
                 z = self.model.reparamatrize(mean, std)
                 z_s.append(z.cpu().detach().numpy())
 
