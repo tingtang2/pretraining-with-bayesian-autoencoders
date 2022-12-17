@@ -16,7 +16,7 @@ from trainers.vae_trainer import (
 
 from trainers.vae_color_trainer import VAENoPretrainingCIFAR10Trainer, VAETinyImageNetPreTrainer, ConvNetVAECIFAR10PreTrainer
 
-from trainers.sa_vae_trainer import SA_VAENotMNIST2MNISTTrainer, SVI_VAENotMNIST2MNISTTrainer
+from trainers.sa_vae_trainer import SA_VAENotMNIST2MNISTTrainer, SVI_VAENotMNIST2MNISTTrainer, SA_VAEOmniglotTrainer
 
 arg_trainer_map = {
     'vae': VAENotMNIST2MNISTTrainer,
@@ -32,7 +32,8 @@ arg_trainer_map = {
     'sa_vae_not_2_mnist': SA_VAENotMNIST2MNISTTrainer,
     'svi_vae_not_2_mnist': SVI_VAENotMNIST2MNISTTrainer,
     'vae_omniglot': VAEOmniglotTrainer,
-    'conv_vae_omniglot': ConvNetVAEOmniglotTrainer
+    'conv_vae_omniglot': ConvNetVAEOmniglotTrainer,
+    'conv_sa_vae_omniglot': SA_VAEOmniglotTrainer
 }
 arg_optimizer_map = {'adamw': AdamW, 'adam': Adam}
 
@@ -44,7 +45,7 @@ def main() -> int:
     )
 
     parser.add_argument('--pretrain_epochs',
-                        default=100,
+                        default=20,
                         type=int,
                         help='number of epochs to pretrain model')
     parser.add_argument('--finetune_epochs',
@@ -136,6 +137,11 @@ def main() -> int:
     parser.add_argument('--grad_clip_vae',
                         action='store_true',
                         help='whether to clip the gradients on the vae')
+
+    parser.add_argument('--latent_dim_size',
+                        default=2,
+                        type=int,
+                        help='size of vae latent dims')
 
     args = parser.parse_args()
     configs = args.__dict__

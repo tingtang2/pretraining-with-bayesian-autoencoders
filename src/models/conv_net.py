@@ -6,7 +6,10 @@ from bayesian_torch.layers import LinearReparameterization, Conv2dReparameteriza
 # code from https://www.kaggle.com/code/maunish/training-vae-on-imagenet-pytorch
 class ConvNetVAE(nn.Module):
 
-    def __init__(self, latent_dim=2, bayesian_encoder=False, bayesian_decoder=False):
+    def __init__(self,
+                 latent_dim=2,
+                 bayesian_encoder=False,
+                 bayesian_decoder=False):
         super().__init__()
 
         self.latent_dim = latent_dim
@@ -18,31 +21,53 @@ class ConvNetVAE(nn.Module):
         #encode
         if bayesian_encoder:
             print("init bayesian conv encoder")
-            self.conv1 = Conv2dReparameterization(1, 32, kernel_size=3, stride=2)
-            self.conv2 = Conv2dReparameterization(32, 64, kernel_size=3, stride=2)
-            self.fc1 = LinearReparameterization(64*(self.shape-1)**2, 2 * self.latent_dim)
+            self.conv1 = Conv2dReparameterization(1,
+                                                  32,
+                                                  kernel_size=3,
+                                                  stride=2)
+            self.conv2 = Conv2dReparameterization(32,
+                                                  64,
+                                                  kernel_size=3,
+                                                  stride=2)
+            self.fc1 = LinearReparameterization(64 * (self.shape - 1)**2,
+                                                2 * self.latent_dim)
         else:
             self.conv1 = nn.Conv2d(1, 32, kernel_size=3, stride=2)
             self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=2)
-            self.fc1 = nn.Linear(64*(self.shape-1)**2, 2 * self.latent_dim)
-            
+            self.fc1 = nn.Linear(64 * (self.shape - 1)**2, 2 * self.latent_dim)
 
         self.flatten = nn.Flatten()
         self.relu = nn.ReLU()
         self.scale = nn.Parameter(torch.tensor([0.0]))
 
+        self.eps = 1e-8
+        self.criterion = nn.MSELoss(reduction='sum')
+
         #decode
         if bayesian_decoder:
             print("init bayesian conv decoder")
-            self.fc2 = LinearReparameterization(self.latent_dim, (self.shape**2) * 32)
-            self.conv3 = ConvTranspose2dReparameterization(32, 64, kernel_size=2, stride=2)
-            self.conv4 = ConvTranspose2dReparameterization(64, 32, kernel_size=2, stride=2)
-            self.conv5 = ConvTranspose2dReparameterization(32, 1, kernel_size=1, stride=1)
+            self.fc2 = LinearReparameterization(self.latent_dim,
+                                                (self.shape**2) * 32)
+            self.conv3 = ConvTranspose2dReparameterization(32,
+                                                           64,
+                                                           kernel_size=2,
+                                                           stride=2)
+            self.conv4 = ConvTranspose2dReparameterization(64,
+                                                           32,
+                                                           kernel_size=2,
+                                                           stride=2)
+            self.conv5 = ConvTranspose2dReparameterization(32,
+                                                           1,
+                                                           kernel_size=1,
+                                                           stride=1)
         else:
             self.fc2 = nn.Linear(self.latent_dim, (self.shape**2) * 32)
             self.conv3 = nn.ConvTranspose2d(32, 64, kernel_size=2, stride=2)
             self.conv4 = nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2)
             self.conv5 = nn.ConvTranspose2d(32, 1, kernel_size=1, stride=1)
+
+        self.decoder = nn.ModuleList(
+            [self.fc2, self.conv3, self.conv4, self.conv5])
 
     def encode(self, x):
         if self.bayesian_encoder:
@@ -55,7 +80,7 @@ class ConvNetVAE(nn.Module):
             x = self.relu(self.conv2(x))
             x = self.relu(self.flatten(x))
             x = self.fc1(x)
-        
+
         mean, logvar = torch.split(x, self.latent_dim, dim=1)
         return mean, logvar
 
@@ -75,6 +100,11 @@ class ConvNetVAE(nn.Module):
         return x
 
     def reparamatrize(self, mean, std):
+        std = torch.nan_to_num(std, nan=.01, neginf=.01)
+        std = torch.relu(std) + self.eps
+        if not torch.all(std > 0):
+            print(std)
+        assert torch.all(std > 0)
         q = torch.distributions.Normal(mean, std)
         return q.rsample()
 
